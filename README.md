@@ -11,6 +11,7 @@ Takes a set of xyz files, writes a file in the following format:
 | nuclear coordinates | 3(N-1) | float32
 | number of bonds (B) | 1 | int8
 | atom indices of bonds | 2B | int8
+| bond orders | B | int8
 | number of dihedrals (D) | 1 | int8
 | atom indices of dihedrals | 4D| int8
 
