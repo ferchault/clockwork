@@ -9,10 +9,12 @@ Takes a set of xyz files, writes a file in the following format:
 | number of atoms (N) | 1 | int8
 | element number | N | int8
 | nuclear coordinates | 3(N-1) | float32
+| number of bonds (B) | 1 | int8
+| atom indices of bonds | 2B | int8
 | number of dihedrals (D) | 1 | int8
 | atom indices of dihedrals | 4D| int8
 
-The first nuclear coordinates are set to be the origin and not explicitly written to the file. This file needs to be read by the worker. For 130k molecules, this is about 15MB.
+The first nuclear coordinates are set to be the origin and not explicitly written to the file. This file needs to be read by the worker. This is about 160 bytes per molecule.
 
 ## Worker
 Takes an input specification, generates geometries using a constrained geometry optimisation first, and a full relaxation second. Writes output specification for every unique confomer found.
