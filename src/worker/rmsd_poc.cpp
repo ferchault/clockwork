@@ -47,5 +47,8 @@ int main(int argc,char **argv)
 	std::cout << "rmsd: " << kabsch::rmsd(coord_alpha, coord_beta, n_atoms) << "\n";
 	std::cout << "rotated rmsd: " << kabsch::kabsch_rmsd(coord_alpha, coord_beta, n_atoms) << "\n";
 
+	delete[] centroid_alpha;
+	delete[] centroid_beta;
+
 	return 0;
 }

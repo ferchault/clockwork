@@ -151,7 +151,7 @@ std::tuple<Matrix*, Matrix*, Matrix*> matrix_svd(
         // TODO What if failed
     }
 
-	delete superb;
+	delete[] superb;
 
     return std::make_tuple(U, S, VT);
 }
@@ -204,10 +204,10 @@ M* kabsch(
 
     M *rotation = multiply(U, V, 3, 3, 3);
 
-	delete C;
-	delete U;
-	delete S;
-	delete V;
+	delete[] C;
+	delete[] U;
+	delete[] S;
+	delete[] V;
 
     return rotation;
 }
@@ -221,7 +221,7 @@ M* kabsch_rotate(
 {
     M *U = kabsch(P, Q, n_atoms);
     M *product = multiply(P, U, n_atoms, 3, 3);
-	delete U;
+	delete[] U;
     return product;
 }
 
@@ -234,10 +234,9 @@ double kabsch_rmsd(
 {
     M *P_rotated = kabsch_rotate(P, Q, n_atoms);
 	double rmsdval = rmsd(P_rotated, Q, n_atoms);
-	delete P_rotated;
+	delete[] P_rotated;
 	return rmsdval;
 }
-
 
 } // namespace rmsd
 

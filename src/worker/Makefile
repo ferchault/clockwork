@@ -1,5 +1,6 @@
 CC=g++
-CFLAGS=-Wall -g -I ../dep/dist/include/openbabel-2.0/ -O3 -fopenmp
+OPT= -O3
+CFLAGS=-Wall -g -I ../dep/dist/include/openbabel-2.0/ -fopenmp
 LDFLAGS=-L dep/dist/lib/ -lgomp -lopenbabel
 JCKFLAGS=-lblas -llapack -llapacke
 
