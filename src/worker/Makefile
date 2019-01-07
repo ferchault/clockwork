@@ -1,6 +1,7 @@
 CC=g++
-CFLAGS=-Wall -g -c -I dep/dist/include/openbabel-2.0/ -O3 -fopenmp
+CFLAGS=-Wall -g -I ../dep/dist/include/openbabel-2.0/ -O3 -fopenmp
 LDFLAGS=-L dep/dist/lib/ -lgomp -lopenbabel
+JCKFLAGS=-lblas -llapack -llapacke
 
 all: worker
 
@@ -9,6 +10,9 @@ worker: worker.o
 
 worker.o: main.cpp
 	$(CC) $(CFLAGS) $(LDFLAGS) main.cpp
+
+test.o: rmsd_poc.cpp kabsch.h
+	$(CC) -o test.o $(CFLAGS) $(LDFLAGS) $(JCKFLAGS) $<
 
 clean:
 	rm -rf worker.o worker
