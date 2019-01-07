@@ -2,16 +2,22 @@
 #include <fstream>
 #include <cmath>
 #include <omp.h>
-#include <openbabel/mol.h>
-#include <openbabel/forcefield.h>
-#include <openbabel/obconversion.h>
+//#include <openbabel/mol.h>
+//#include <openbabel/forcefield.h>
+//#include <openbabel/obconversion.h>
+
+#include "io.cpp"
 
 class Workpackage {
 // read binary string	
-}
+};
 
 int main(int argc,char **argv)
 {
+	Archive archive;
+	archive.read_archive("../../fixtures/sample.archive");
+
+	/*
 	// Needed such that openbabel does not try to parallelise
 	omp_set_num_threads(1);
 
@@ -46,6 +52,6 @@ int main(int argc,char **argv)
 		
 		// Use mol.GetCoordinates() for rmsd check
 	}
-  
+  */
   return 0;
 }
