@@ -86,6 +86,8 @@ int Archive::read_archive(const char * filename) {
 		}
 
 		
+
+
 	}
 	std::cout << this->molecule_ids[0] << " " << this->molecule_ids[1] << std::endl;
 
