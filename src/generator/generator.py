@@ -51,7 +51,7 @@ def binarify_molecules(inputfile, outputfile):
 		number_of_dihedrals = len(dihedrals)
 
 		# binary packing
-		formatstring = 'IB%dB%ddB%dB%dBB%dB' % (number_of_atoms, # element numbers
+		formatstring = '=IB%dB%ddB%dB%dBB%dB' % (number_of_atoms, # element numbers
 			3*(number_of_atoms - 1), 	# atomic coordinates
 			2*number_of_bonds, 			# atom indices in bonds
 			number_of_bonds,			# bond orders
