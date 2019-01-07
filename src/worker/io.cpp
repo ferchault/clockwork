@@ -32,9 +32,9 @@ int Archive::read_archive(const char * filename) {
 	char * buffer8 = new char[8];
 	unsigned int atomcount, elementid, bondcount, dihedralcount;
 	unsigned int molecule_id;
-	while (!fh.eof()) {
+	
+	while (fh.read(buffer4, 4) && !fh.eof()) {
 		// read molecule id
-		fh.read(buffer4, 4);
 		molecule_id = *(unsigned int*)buffer4;
 		#ifdef DEBUG
 			std::cout << "Reading molecule " << molecule_id << std::endl;
@@ -158,9 +158,10 @@ int Archive::read_archive(const char * filename) {
 		#endif
 		dihedrals.insert(std::pair<unsigned int, unsigned int*>(molecule_id, dihedralindices));
 	}
-	std::cout << this->molecule_ids[0] << " " << this->molecule_ids[1] << std::endl;
 
 	delete[] buffer1;
+	delete[] buffer4;
+	delete[] buffer8;
 
 	fh.close();
 	return 0;
