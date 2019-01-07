@@ -8,7 +8,7 @@ Takes a set of xyz files, writes a file in the following format:
 | molecule ID | 1 | int32
 | number of atoms (N) | 1 | int8
 | element number | N | int8
-| nuclear coordinates | 3(N-1) | float32
+| nuclear coordinates (x1, y1, z1, x2, ...) | 3(N-1) | float32
 | number of bonds (B) | 1 | int8
 | atom indices of bonds | 2B | int8
 | bond orders | B | int8
