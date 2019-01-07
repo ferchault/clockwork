@@ -20,7 +20,7 @@ int main(int argc,char **argv)
 	Workpackage * wp;
 
 	OpenBabel::OBMol mol;
-        for (atom = wp->atoms.begin(); atom != wp->atoms.end(); ++atom) {
+	for (atom = wp->atoms.begin(); atom != wp->atoms.end(); ++atom) {
 		OpenBabel::OBAtom obatom;
 		obatom.SetAtomicNum(OpenBabel::OBElements::GetAtomicNum(atom->number);
 		obatom.SetVector(atom->x, atom->y, atom->z);

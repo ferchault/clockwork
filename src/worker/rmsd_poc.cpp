@@ -15,8 +15,8 @@ int main(int argc,char **argv)
 	std::string filename_alpha = "xyz/wat_longer.xyz";
 	std::string filename_beta = "xyz/wat_longer_moved.xyz";
 
-    std::ifstream file_alpha (filename_alpha);
-    std::ifstream file_beta (filename_beta);
+	std::ifstream file_alpha (filename_alpha);
+	std::ifstream file_beta (filename_beta);
 
 	OpenBabel::OBMol mol_alpha;
 	OpenBabel::OBMol mol_beta;
@@ -36,12 +36,12 @@ int main(int argc,char **argv)
 	auto centroid_beta = kabsch::centroid(coord_beta, n_atoms);
 
 	// Recenter
-    for(unsigned int i = 0; i < n_atoms; i++) {
-        for(unsigned int d = 0; d < 3; d++) {
-            coord_alpha[3*i + d] -= centroid_alpha[d];
-            coord_beta[3*i + d] -= centroid_beta[d];
-        }
-    }
+	for(unsigned int i = 0; i < n_atoms; i++) {
+		for(unsigned int d = 0; d < 3; d++) {
+			coord_alpha[3*i + d] -= centroid_alpha[d];
+			coord_beta[3*i + d] -= centroid_beta[d];
+		}
+	}
 
 	// rmsd
 	std::cout << "rmsd: " << kabsch::rmsd(coord_alpha, coord_beta, n_atoms) << "\n";
