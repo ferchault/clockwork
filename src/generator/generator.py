@@ -32,7 +32,7 @@ def binarify_molecules(inputfile, outputfile):
 		bonds = []
 		for bond in ob.OBMolBondIter(mol):
 			bond_orders.append(bond.GetBO())
-			bonds.append([bond.GetBeginAtomIdx(), bond.GetEndAtomIdx()])
+			bonds.append([bond.GetBeginAtomIdx() - 1, bond.GetEndAtomIdx() - 1])
 		number_of_bonds = len(bonds)
 
 		# dihedral properties
