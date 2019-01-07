@@ -35,7 +35,18 @@ def binarify_molecules(filename):
 		number_of_bonds = len(bonds)
 
 		# dihedral properties
-		dihedrals = [list(_) for _ in ob.OBMolTorsionIter(mol)]
+		dihedrals = []
+		for dihedral in ob.OBMolTorsionIter(mol):
+			heavy = [element_numbers[_] > 1 for _ in dihedral]
+			
+			# assert middle atoms to be heavy
+			if not (heavy[1] and heavy[2]):
+				continue
+			# skip if two H are involved
+			if not heavy[0] and not heavy[3]:
+				continue
+
+			dihedrals.append(list(dihedral))
 		number_of_dihedrals = len(dihedrals)
 
 		# binary packing
