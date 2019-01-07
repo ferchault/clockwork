@@ -1,14 +1,15 @@
 #!/usr/bin/env python
-""" Usage: generator.py FILE_WITH_PATHS_TO_XYZ_ONE_PER_LINE """
+""" Usage: generator.py FILE_WITH_PATHS_TO_XYZ_ONE_PER_LINE OUTPUT_FILE """
 
 import sys
 import struct
 import openbabel as ob
 
-def binarify_molecules(filename):
+def binarify_molecules(inputfile, outputfile):
+	ofile = open(outputfile, 'wb')
 	obconv = ob.OBConversion()
 	obconv.SetInFormat('xyz')
-	for molidx, xyzfile in enumerate(open(filename).readlines()):
+	for molidx, xyzfile in enumerate(open(inputfile).readlines()):
 		mol = ob.OBMol()
 		obconv.ReadFile(mol, xyzfile.strip())
 		
@@ -58,7 +59,7 @@ def binarify_molecules(filename):
 		nuclear_coordinates = sum(nuclear_coordinates, [])
 		bonds = sum(bonds, [])
 		dihedrals = sum(dihedrals, [])
-		struct.pack(formatstring, 
+		ofile.write(struct.pack(formatstring, 
 			molecule_id, 
 			number_of_atoms, 
 			*element_numbers, 
@@ -67,7 +68,8 @@ def binarify_molecules(filename):
 			*bonds, 
 			*bond_orders,
 			number_of_dihedrals,
-			*dihedrals)
+			*dihedrals))
+	ofile.close()
 
 if __name__ == '__main__':
-	binarify_molecules(sys.argv[1])
+	binarify_molecules(sys.argv[1], sys.argv[2])
