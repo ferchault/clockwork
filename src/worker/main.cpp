@@ -6,9 +6,9 @@
 //#include <openbabel/mol.h>
 //#include <openbabel/forcefield.h>
 //#include <openbabel/obconversion.h>
-//extern "C" {
-#include "hiredis/hiredis.h"
-//};
+extern "C" {
+	#include "hiredis/hiredis.h"
+};
 #include "io.cpp"
 
 class Workpackage {
@@ -26,7 +26,7 @@ public:
 };
 
 redisContext * redis_connect() {
-	redisContext * c = redisConnect("131.152.106.156", 6379);
+	redisContext * c = redisConnect(getenv("CONFORMERREDIS"), 6379);
 	if (c != NULL && c->err) {
 		printf("Error: %s\n", c->errstr);
 	}
@@ -43,6 +43,7 @@ int main(int argc,char **argv)
 	archive.read_archive("../../fixtures/sample.archive");
 	
 	redisContext *c = redis_connect();
+
 
 	/*
 	// Needed such that openbabel does not try to parallelise
