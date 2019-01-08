@@ -1,11 +1,14 @@
 #include <iostream>
 #include <fstream>
 #include <cmath>
+#include <stdlib.h>
 #include <omp.h>
 //#include <openbabel/mol.h>
 //#include <openbabel/forcefield.h>
 //#include <openbabel/obconversion.h>
-
+//extern "C" {
+#include "hiredis/hiredis.h"
+//};
 #include "io.cpp"
 
 class Workpackage {
@@ -22,11 +25,25 @@ public:
 	void read_binary(std::string);
 };
 
+redisContext * redis_connect() {
+	redisContext * c = redisConnect("131.152.106.156", 6379);
+	if (c != NULL && c->err) {
+		printf("Error: %s\n", c->errstr);
+	}
+	redisReply *reply;
+	reply = (redisReply*)redisCommand(c, "AUTH chemspacelab");
+	freeReplyObject(reply);
+
+	return c;
+}
+
 int main(int argc,char **argv)
 {
 	Archive archive;
 	archive.read_archive("../../fixtures/sample.archive");
 	
+	redisContext *c = redis_connect();
+
 	/*
 	// Needed such that openbabel does not try to parallelise
 	omp_set_num_threads(1);
@@ -62,5 +79,6 @@ int main(int argc,char **argv)
 		// Use mol.GetCoordinates() for rmsd check
 	}
   */
-  return 0;
+	redisFree(c);
+	return 0;
 }

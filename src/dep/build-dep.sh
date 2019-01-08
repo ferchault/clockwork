@@ -10,3 +10,9 @@ make -j4
 make install
 cd ../..
 
+wget https://github.com/redis/hiredis/archive/master.zip
+unzip master.zip
+cd hiredis-master
+PREFIX=../dist make
+PREFIX=../dist make install
+
