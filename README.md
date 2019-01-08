@@ -43,3 +43,9 @@ This is about 20 bytes per input specification. The output is stored as follows:
 | nuclear coordinates | 3(N-1) | float32
 
 Here, the molecule ID and the level of theory are implicitly stored in the filename. The first nuclear coordinates are set to be the origin and not explicitly written to the file. This results in about 250 bytes per conformer.
+
+
+Note that the generator takes a list of xyz files as input (because it needs to take a lot)
+
+     python src/generator/generator.py <(echo fixtures/water.xyz) water.bin
+
