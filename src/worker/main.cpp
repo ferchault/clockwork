@@ -19,7 +19,7 @@ public:
 	unsigned int * frozen_dihedrals_n;
 	unsigned int * frozen_dihedrals_i;
 
-	void read_binary(std::string)
+	void read_binary(std::string);
 };
 
 int main(int argc,char **argv)
