@@ -5,6 +5,7 @@
 #define DEBUG
 
 class Archive {
+public:
 	std::vector<unsigned int> molecule_ids;
 	std::map<unsigned int, unsigned int> number_of_atoms;
 	std::map<unsigned int, unsigned int*> element_numbers;
@@ -14,7 +15,6 @@ class Archive {
 	std::map<unsigned int, unsigned int*> bond_orders;
 	std::map<unsigned int, unsigned int> number_of_dihedrals;
 	std::map<unsigned int, unsigned int*> dihedrals;
-public:
 	int read_archive(const char * filename);
 };
 

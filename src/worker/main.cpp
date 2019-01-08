@@ -9,21 +9,30 @@
 #include "io.cpp"
 
 class Workpackage {
-// read binary string	
+public:
+	unsigned int molecule_id;
+	unsigned int scan_dihedral;
+	unsigned int clockwork_min;
+	unsigned int clockwork_max;
+	unsigned int frozen_count;
+	unsigned int * frozen_dihedrals;
+	unsigned int * frozen_dihedrals_n;
+	unsigned int * frozen_dihedrals_i;
+
+	void read_binary(std::string)
 };
 
 int main(int argc,char **argv)
 {
 	Archive archive;
 	archive.read_archive("../../fixtures/sample.archive");
-
+	
 	/*
 	// Needed such that openbabel does not try to parallelise
 	omp_set_num_threads(1);
 
 	OpenBabel::OBForceField * ff = OpenBabel::OBForceField::FindForceField("MMFF94");
 
-	Workpackage * wp;
 
 	OpenBabel::OBMol mol;
 	for (atom = wp->atoms.begin(); atom != wp->atoms.end(); ++atom) {
