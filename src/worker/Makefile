@@ -13,8 +13,7 @@ worker: main.cpp
 test: poc_rmsd.o poc_conformations.o
 
 %.o: %.cpp
-	$(CC) -c $(CFLAGS) $(LDFLAGS) $(MATHFLAGS) $<
-	chmod +x $@
+	$(CC) -o $@ $(CFLAGS) $(LDFLAGS) $(MATHFLAGS) $<
 
 clean:
 	rm -rf *.o worker
