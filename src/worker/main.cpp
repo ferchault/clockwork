@@ -28,7 +28,7 @@ public:
 };
 
 redisContext * redis_connect() {
-	redisContext * context = redisConnect(getenv("CONFORMERREDIS"), 6379);
+	redisContext * context = redisConnect(getenv("CONFORMERREDIS"), 80);
 	if (context != NULL && context->err) {
 		printf("Error: %s\n", context->errstr);
 	}
@@ -116,8 +116,10 @@ int main(int argc,char **argv)
 {
 	Archive archive;
 	archive.read_archive(argv[1]);
+	std::cout << "Reading archive complete." << std::endl;
 	
 	redisContext *context = redis_connect();
+	std::cout << "Connected to redis." << std::endl;
 
 	Workpackage *wp = new Workpackage();
 	unsigned char * payload = 0;
