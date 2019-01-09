@@ -68,7 +68,7 @@ int redis_fetch(redisContext * context, unsigned char * payload, size_t * payloa
 }
 
 // clears up the redis queues with running work packages
-int redis_notify(redisContext * context, unsigned char * payload, size_t payloadsize) {
+int redis_notify(redisContext * context, unsigned char * payload, size_t payloadsize, time_t packagestart) {
 	redisReply *reply;
 	
 	// delete entry for running work packages
@@ -86,6 +86,19 @@ int redis_notify(redisContext * context, unsigned char * payload, size_t payload
 		return 2;
 	}
 
+	// update stats
+	time_t now = std::time(NULL);
+	reply = (redisReply*)redisCommand(context, "RPUSH WPRstats:%d %d", now % 60, now - packagestart);
+	if (reply == NULL) {
+		std::cout << "Lost connection to REDIS in redis_notify INCR." << std::endl;
+		return 2;
+	}	
+	reply = (redisReply*)redisCommand(context, "EXPIRE WPRstats:%d 3600", now % 60);
+	if (reply == NULL) {
+		std::cout << "Lost connection to REDIS in redis_notify EXPIRE." << std::endl;
+		return 2;
+	}	
+
 	return 0;	
 }
 
@@ -99,8 +112,11 @@ int main(int argc,char **argv)
 	Workpackage *wp = new Workpackage();
 	unsigned char * payload = 0;
 	size_t payloadsize;
+	time_t packagestart;
 	while (redis_fetch(context, payload, &payloadsize)) {
+		packagestart = std::time(NULL);
 		wp->read_binary(payload);
+
 		
 /*
 	// Needed such that openbabel does not try to parallelise
@@ -137,7 +153,7 @@ int main(int argc,char **argv)
 		// Use mol.GetCoordinates() for rmsd check
 	}
   */
-		if (!redis_notify(context, payload, payloadsize)) {
+		if (!redis_notify(context, payload, payloadsize, packagestart)) {
 			std::cout << "Problems in communicating to REDIS. Aborting." << std::endl;
 		}
 
