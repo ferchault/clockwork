@@ -40,7 +40,7 @@ redisContext * redis_connect() {
 }
 
 // reads a new work package from redis securely (i.e. without chance of dropping the package)
-int redis_fetch(redisContext * context, unsigned char * payload, size_t * payloadsize) {
+int redis_fetch(redisContext * context, unsigned char ** payload, size_t * payloadsize) {
 	redisReply *reply;
 	reply = (redisReply*)redisCommand(context, "RPOPLPUSH WPQ WPR");
 	if (reply == NULL || reply->type != REDIS_REPLY_STRING) {
@@ -53,13 +53,14 @@ int redis_fetch(redisContext * context, unsigned char * payload, size_t * payloa
 	*payloadsize = reply->len;
 	unsigned char * chunk = new unsigned char[reply->len];
 	std::memcpy(chunk, reply->str, reply->len);
-	payload = chunk;
+	*payload = chunk;
 	freeReplyObject(reply);
 
 	// store start time 
-	reply = (redisReply*)redisCommand(context, "HSET WPRstarted %b %d", payload, payloadsize, (int)std::time(NULL));
+	reply = (redisReply*)redisCommand(context, "HSET WPRstarted %b %d", *payload, *payloadsize, (int)std::time(NULL));
 	if (reply == NULL || reply->type != REDIS_REPLY_INTEGER) {
 		// unexpected result, terminating to be on the safe side
+		std::cout << "Unexpected REDIS response: " << context->errstr << std::endl;
 		freeReplyObject(reply);	
 		return 3;
 	}
@@ -88,12 +89,12 @@ int redis_notify(redisContext * context, unsigned char * payload, size_t payload
 
 	// update stats
 	time_t now = std::time(NULL);
-	reply = (redisReply*)redisCommand(context, "RPUSH WPRstats:%d %d", now % 60, now - packagestart);
+	reply = (redisReply*)redisCommand(context, "RPUSH WPRstats:%d %d", now / 60, now - packagestart);
 	if (reply == NULL) {
-		std::cout << "Lost connection to REDIS in redis_notify INCR." << std::endl;
+		std::cout << "Lost connection to REDIS in redis_notify RPUSH." << std::endl;
 		return 2;
 	}	
-	reply = (redisReply*)redisCommand(context, "EXPIRE WPRstats:%d 3600", now % 60);
+	reply = (redisReply*)redisCommand(context, "EXPIRE WPRstats:%d 3600", now / 60);
 	if (reply == NULL) {
 		std::cout << "Lost connection to REDIS in redis_notify EXPIRE." << std::endl;
 		return 2;
@@ -122,47 +123,23 @@ int main(int argc,char **argv)
 	unsigned char * payload = 0;
 	size_t payloadsize;
 	time_t packagestart;
-	while (redis_fetch(context, payload, &payloadsize)) {
+	while (redis_fetch(context, &payload, &payloadsize) == 0) {
 		packagestart = std::time(NULL);
 		wp->read_binary(payload);
-
 		
-/*
-	// Needed such that openbabel does not try to parallelise
-	omp_set_num_threads(1);
+		/*
+build_molecule
 
-	OpenBabel::OBForceField * ff = OpenBabel::OBForceField::FindForceField("MMFF94");
+for i in 100:
+	rotate_dihedral(1, 90)
+	contraint_geo_opt()
+	free_geo_opt()
+	for i:
+		rmsd_compare(base molecule, geo_opt_result)
 
+		*/
 
-	OpenBabel::OBMol mol;
-	for (atom = wp->atoms.begin(); atom != wp->atoms.end(); ++atom) {
-		OpenBabel::OBAtom obatom;
-		obatom.SetAtomicNum(OpenBabel::OBElements::GetAtomicNum(atom->number);
-		obatom.SetVector(atom->x, atom->y, atom->z);
-		mol->AddAtom(obatom);
-	}
-	
-	for (bond = wp->bonds.begin(); bond != wp->bonds.end(); ++bond) {
-		mol->AddBond(bond->begin, bond->end, bond->order);
-	}
-	
-	// constraints
-	constraints = OpenBabel::OBForceField::OBFFConstraints()
-	ff->SetConstraints(constraints);
-	for (frozen = wp->frozen_dihedrals.begin(); frozen != wp->frozen_dihedrals.end(); ++frozen) {
-		constraints->AddTorsionConstraint(frozen->i, frozen->j, frozen->k, frozen->l, frozen->value)
-	}
-
-	for (scan in wp->scans.begin(); scan != wp->scans.end(); ++scan) {
-		constraints->AddTorsionConstraint(scan->i, scan->j, scan->k, scan->l, scan->value);
-		ff->ConjugateGradients(numsteps, threshold);
-		constraints->DeleteConstraint(constraints->Size());
-		ff->ConjugateGradients(numsteps, threshold);
-		
-		// Use mol.GetCoordinates() for rmsd check
-	}
-  */
-		if (!redis_notify(context, payload, payloadsize, packagestart)) {
+		if (redis_notify(context, payload, payloadsize, packagestart) != 0) {
 			std::cout << "Problems in communicating to REDIS. Aborting." << std::endl;
 		}
 
