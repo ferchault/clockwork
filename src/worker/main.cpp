@@ -5,9 +5,9 @@
 #include <omp.h>
 #include <ctime>
 #include <cstring>
-//#include <openbabel/mol.h>
-//#include <openbabel/forcefield.h>
-//#include <openbabel/obconversion.h>
+#include <openbabel/mol.h>
+#include <openbabel/forcefield.h>
+#include <openbabel/obconversion.h>
 extern "C" {
 	#include "hiredis/hiredis.h"
 };
@@ -102,10 +102,19 @@ int redis_notify(redisContext * context, unsigned char * payload, size_t payload
 	return 0;	
 }
 
+// save in folder hierarchy to reduce file system load
+// estimate: 1.3k cores, 48h retention time, 100 workpackages/core hours = 6.2e6 files
+// two levels of [a-zA-Z0-9] are sufficient
+/*void save_reults() {
+	char * filename[50];
+	sprintf(filename, "%s/%s/%d-%s", )
+} */ 
+
+
 int main(int argc,char **argv)
 {
 	Archive archive;
-	archive.read_archive("../../fixtures/sample.archive");
+	archive.read_archive(argv[1]);
 	
 	redisContext *context = redis_connect();
 
