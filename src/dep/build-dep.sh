@@ -15,8 +15,6 @@ unzip master.zip
 cd hiredis-master
 LIBRARY_PATH=lib PREFIX=../dist make
 LIBRARY_PATH=lib PREFIX=../dist make install
-PREFIX=../dist make
-PREFIX=../dist make install
 
 
 wget http://www.netlib.org/lapack/lapack-3.8.0.tar.gz
