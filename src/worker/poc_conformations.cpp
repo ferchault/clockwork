@@ -16,7 +16,7 @@ int main(int argc,char **argv)
 	Archive archive;
 	archive.read_archive("../../fixtures/sample.archive");
 
-	unsigned int idx = archive.molecule_ids[0];
+	// unsigned int idx = archive.molecule_ids[0];
 
 	example_worker(archive, 0);
 
