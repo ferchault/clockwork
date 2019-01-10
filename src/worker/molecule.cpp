@@ -82,7 +82,8 @@ double add_to_torsion(
 void example_worker(Archive archive, int mol_index)
 {
 
-	OpenBabel::OBForceField * ff = OpenBabel::OBForceField::FindForceField("MMFF94");
+	// OpenBabel::OBForceField * ff = OpenBabel::OBForceField::FindForceField("MMFF94");
+	OpenBabel::OBForceField * ff = OpenBabel::OBForceField::FindForceField("UFF");
 	auto constraints = OpenBabel::OBFFConstraints();
 
 	double angle;
@@ -93,14 +94,19 @@ void example_worker(Archive archive, int mol_index)
 
 	auto mol = make_molecule(archive, mol_index);
 
-	int numsteps = 1000;
-	double threshold = 1e-1;
+	int n_steps_per_gradient = 5;
+	int n_steps_per_round = 100;
+	int n_steps_per_round_constraint = 1000;
+	double threshold = 1e-4;
+
+	// ff->SetLogFile(0);
+	// ff->SetLogLevel(OBFF_LOGLVL_HIGH);
 
 	angle = 90.0;
 
 	std::cout << "starting" << "\n";
 
-	for (unsigned int n=0; n<100; n++)
+	for (unsigned int n=0; n<1; n++)
 	{
 		angle = 90.0;
 
@@ -113,17 +119,43 @@ void example_worker(Archive archive, int mol_index)
 		angle = add_to_torsion(&mol, a, b, c, d, angle);
 
 		ff->Setup(mol);
+
+		double energyA = 10000;
+		double energyB = 1000;
+		int ni = 0;
+
 		ff->SetConstraints(constraints);
 		constraints.AddTorsionConstraint(a+1, b+1, c+1, d+1, angle);
-		ff->ConjugateGradients(numsteps, threshold);
+		ff->ConjugateGradientsInitialize(n_steps_per_gradient, threshold);
+
+		while(energyA-energyB>threshold && ni < n_steps_per_round_constraint)
+		{
+			ni += 1;
+			energyA = energyB;
+			ff->ConjugateGradientsTakeNSteps(n_steps_per_gradient);
+			energyB = ff->Energy();
+			// std::cout << "JG CONST: " << ni << " " << energyA-energyB << "\n";
+		}
 
 		constraints.DeleteConstraint(constraints.Size()-1);
-		ff->ConjugateGradients(numsteps, threshold);
+		ff->ConjugateGradientsInitialize(n_steps_per_gradient, threshold);
+
+		energyA = 10000;
+		energyB = 1000;
+		ni = 0;
+
+		while(energyA-energyB>threshold && ni < n_steps_per_round)
+		{
+			ni += 1;
+			energyA = energyB;
+			ff->ConjugateGradientsTakeNSteps(n_steps_per_gradient);
+			energyB = ff->Energy();
+			// std::cout << "JG FREE:  " << ni << " " << energyA-energyB << "\n";
+		}
 	
 		double compare = kabsch::kabsch_rmsd(coord, mol.GetCoordinates(), n_atoms);
 
 		std::cout << "member " << angle << " " << compare << " " << constraints.Size() << "\n";
 
 	}
-
 }
