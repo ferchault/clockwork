@@ -17,7 +17,7 @@ OpenBabel::OBMol make_molecule(Archive archive, int idx)
 
 	unsigned int n_atoms = archive.number_of_atoms[idx];
 	unsigned int n_bonds = archive.number_of_bonds[idx];
-	unsigned int n_dihedrals = archive.number_of_dihedrals[idx];
+	// unsigned int n_dihedrals = archive.number_of_dihedrals[idx];
 
 	auto coord = archive.coordinates[idx];
 
@@ -158,4 +158,5 @@ void example_worker(Archive archive, int mol_index)
 		std::cout << "member " << angle << " " << compare << " " << constraints.Size() << "\n";
 
 	}
+
 }
