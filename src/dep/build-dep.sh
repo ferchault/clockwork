@@ -13,6 +13,8 @@ cd ../..
 wget https://github.com/redis/hiredis/archive/master.zip
 unzip master.zip
 cd hiredis-master
+LIBRARY_PATH=lib PREFIX=../dist make
+LIBRARY_PATH=lib PREFIX=../dist make install
 PREFIX=../dist make
 PREFIX=../dist make install
 
@@ -21,6 +23,25 @@ wget http://www.netlib.org/lapack/lapack-3.8.0.tar.gz
 tar xzf lapack-3.8.0.tar.gz
 cd lapack-3.8.0/
 cp INSTALL/make.inc.gfortran make.inc
-make lapacklib lapackelib
+make -j4 lapacklib lapackelib
+cp liblapack*.a ../dist/lib/
+cp LAPACKE/include/*.h ../dist/include/
+cd  ..
 
-module load OpenBLAS/0.3.3-GCC-8.2.0-2.31.1 ScaLAPACK/2.0.2-gompi-2018.08-OpenBLAS-0.3.3
+wget http://www.netlib.org/blas/blas-3.8.0.tgz
+tar xzf blas-3.8.0.tgz
+cd BLAS-3.8.0/
+make
+cp blas_LINUX.a ../dist/lib/libblas.a
+
+
+
+wget http://www.netlib.org/blas/blast-forum/cblas.tgz
+tar xzf cblas.tgz
+cd CBLAS
+cp Makefile.LINUX Makefile.in
+cp ../BLAS-3.8.0/blas_LINUX.a libblas.a
+make -j4
+cp lib/cblas_LINUX.a ../dist/lib/libcblas.a
+cp include/* ../dist/include
+
