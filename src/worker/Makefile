@@ -1,9 +1,9 @@
 CC=g++
 OPT= -O3
 CFLAGS=-Wall -g -I ../dep/dist/include/openbabel-2.0/ -I ../dep/dist/include/ -fopenmp -std=c++11
-LDFLAGS=-L ../dep/dist/lib/ -lgomp -lopenbabel
-LDPOSTFLAGS=-lhiredis -lopenbabel -lblas -llapack -llapacke
-MATHFLAGS=-lblas -llapack -llapacke
+LDFLAGS=-L ../dep/dist/lib/ -lgomp -lopenbabel -lhiredis
+LDPOSTFLAGS=-lcblas -llapacke -llapack -lblas -lgfortran
+MATHFLAGS=
 
 all: worker
 
