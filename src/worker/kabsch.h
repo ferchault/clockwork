@@ -85,6 +85,8 @@ Matrix* multiply(Matrix *A, Matrix *B,
 {
     double one = 1.0;
 
+	// TODO Matrix C[M*N] = {0}
+	// Compilers doesnt like the following syntax
 	Matrix *C = new Matrix[M*N] {0};
 
     cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans,
