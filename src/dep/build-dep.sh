@@ -15,6 +15,7 @@ unzip master.zip
 cd hiredis-master
 LIBRARY_PATH=lib PREFIX=../dist make
 LIBRARY_PATH=lib PREFIX=../dist make install
+cd ..
 
 
 wget http://www.netlib.org/lapack/lapack-3.8.0.tar.gz
@@ -31,7 +32,7 @@ tar xzf blas-3.8.0.tgz
 cd BLAS-3.8.0/
 make
 cp blas_LINUX.a ../dist/lib/libblas.a
-
+cd ..
 
 
 wget http://www.netlib.org/blas/blast-forum/cblas.tgz
