@@ -7,5 +7,6 @@ cd build
 cmake ../ -DCMAKE_INSTALL_PREFIX=../../dist -DWITH_INCHI=OFF
 make -j4
 make install
-cd ../..
+cd ..
+cd ..
 

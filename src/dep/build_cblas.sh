@@ -8,4 +8,5 @@ cp ../BLAS-3.8.0/blas_LINUX.a libblas.a
 make -j4
 cp lib/cblas_LINUX.a ../dist/lib/libcblas.a
 cp include/* ../dist/include
+cd ..
 
