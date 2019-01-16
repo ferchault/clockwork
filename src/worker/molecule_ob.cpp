@@ -7,6 +7,8 @@
 #include <openbabel/forcefield.h>
 #include <openbabel/obconversion.h>
 
+#include <cmath> // std:pow
+#include <algorithm>    // std::min
 
 OpenBabel::OBMol make_molecule(Archive archive, int idx)
 {
@@ -78,9 +80,28 @@ double add_to_torsion(
 }
 
 
+int scan_torsion(int i, int j, int n)
+{
+	double start = 360.0/std::pow(2, n+1);
+	double step = std::min((double) 360.0/std::pow(2, n-1), (double) 180.0);
+	unsigned int n_steps = std::pow(2, n-1);
+
+	std::cout << "n_steps " << n_steps << "\n";
+	
+	for (unsigned int k; k < n_steps; k++)
+	{
+		std::cout << k << " " << start + step*k << "\n";
+	}
+
+	return 0;
+}
+
 
 void example_worker(Archive archive, int mol_index)
 {
+
+	// Needed such that openbabel does not try to parallelise
+	omp_set_num_threads(1);
 
 	// OpenBabel::OBForceField * ff = OpenBabel::OBForceField::FindForceField("MMFF94");
 	OpenBabel::OBForceField * ff = OpenBabel::OBForceField::FindForceField("UFF");
@@ -106,7 +127,7 @@ void example_worker(Archive archive, int mol_index)
 
 	std::cout << "starting" << "\n";
 
-	for (unsigned int n=0; n<1; n++)
+	for (unsigned int n=0; n<100; n++)
 	{
 		angle = 90.0;
 
@@ -134,7 +155,6 @@ void example_worker(Archive archive, int mol_index)
 			energyA = energyB;
 			ff->ConjugateGradientsTakeNSteps(n_steps_per_gradient);
 			energyB = ff->Energy();
-			// std::cout << "JG CONST: " << ni << " " << energyA-energyB << "\n";
 		}
 
 		constraints.DeleteConstraint(constraints.Size()-1);
@@ -150,7 +170,6 @@ void example_worker(Archive archive, int mol_index)
 			energyA = energyB;
 			ff->ConjugateGradientsTakeNSteps(n_steps_per_gradient);
 			energyB = ff->Energy();
-			// std::cout << "JG FREE:  " << ni << " " << energyA-energyB << "\n";
 		}
 	
 		double compare = kabsch::kabsch_rmsd(coord, mol.GetCoordinates(), n_atoms);
