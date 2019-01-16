@@ -16,6 +16,8 @@
 
 int main(int argc,char **argv)
 {
+	omp_set_num_threads(1);
+
 	Archive archive;
 	archive.read_archive(argv[1]);
 	std::cout << "Reading archive complete." << std::endl;
