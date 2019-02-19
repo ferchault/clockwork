@@ -1,52 +1,42 @@
 
+import itertools
 import time
 
+import matplotlib.pyplot as plt
 import numpy as np
-
-import itertools
-
-from rdkit import Chem
-from rdkit.Chem import AllChem
-from rdkit.Chem import ChemicalForceFields
-
 import rmsd
 from qml import fchl
 
-import matplotlib.pyplot as plt
-
-import cProfile
-
-
-def do_cprofile(func):
-    def profiled_func(*args, **kwargs):
-        profile = cProfile.Profile()
-        try:
-            profile.enable()
-            result = func(*args, **kwargs)
-            profile.disable()
-            return result
-        finally:
-            profile.print_stats()
-    return profiled_func
-
+from rdkit import Chem
+from rdkit.Chem import AllChem, ChemicalForceFields
 
 
 def load_sdf(filename):
     """
 
-    load sdf file and return rdkit mol
+    load sdf file and return rdkit mol list
+
+    args:
+        filename sdf
+
+    return:
+        list of mol objs
 
     """
 
-    suppl = Chem.SDMolSupplier(filename, removeHs=False, sanitize=True)
-    mol = next(suppl)
+    suppl = Chem.SDMolSupplier(filename,
+                               removeHs=False,
+                               sanitize=True)
 
-    return mol
+    mollist = [mol for mol in suppl]
 
-
+    return mollist
 
 
 def get_representations_fchl(atoms, coordinates_list):
+    """
+
+    """
 
     replist = []
 
@@ -58,8 +48,10 @@ def get_representations_fchl(atoms, coordinates_list):
 
 
 def get_kernel_fchl(rep_alpha, rep_beta):
+    """
 
-    # sigmas = [0.625, 1.25, 2.5, 5.0, 10.0]
+    """
+
     sigmas = [0.8]
 
     if id(rep_alpha) == id(rep_beta):
@@ -463,6 +455,7 @@ def get_conformation(mol, res, torsions):
 
     # init energy
     energies = []
+    states = []
 
     # no constraints
     ffprop, forcefield = get_forcefield(mol)
@@ -500,23 +493,18 @@ def get_conformation(mol, res, torsions):
 
             set_angle = origin_angles[i] + angle
 
-            try:
-                # Set clockwork angle
-                Chem.rdMolTransforms.SetDihedralDeg(conformer, *torsions[i], set_angle)
-            except:
-                pass
+            # Set clockwork angle
+            try: Chem.rdMolTransforms.SetDihedralDeg(conformer, *torsions[i], set_angle)
+            except: pass
 
             # Set forcefield constrain
             ffc.MMFFAddTorsionConstraint(*torsions[i], False,
                                          set_angle, set_angle, 1.0e10)
 
-
         # minimize constrains
-        # ffc.Minimize(maxIts=500, energyTol=1e-2, forceTol=1e-3)
         status = run_forcefield(ffc, 500)
 
         # minimize global
-        # status = forcefield.Minimize(maxIts=700, energyTol=1e-2, forceTol=1e-4)
         status = run_forcefield2(forcefield, 700, force=1e-4)
 
         # Get current energy
@@ -529,13 +517,9 @@ def get_conformation(mol, res, torsions):
 
         axis_pos += [pos]
         energies += [energy]
+        states += [status]
 
-        # now_angles = []
-        # for idxs in torsions:
-        #     angle = Chem.rdMolTransforms.GetDihedralDeg(conformer, *idxs)
-        #     now_angles.append(angle)
-
-    return energies, axis_pos
+    return energies, axis_pos, states
 
 
 def get_torsion_atoms(mol, torsion):
@@ -589,24 +573,142 @@ def get_torsions(mol):
     return np.array(rtnidxs, dtype=int)
 
 
+def asdf(some_archive):
+    """
+
+    arg:
+
+
+    return:
+
+
+    """
+
+
+
+    return positions
+
+
+def getthoseconformers(mol, torsions, torsion_bodies, clockwork_resolutions, debug=False, unique_method=unique_energy):
+
+    # intel on molecule
+    atoms = [atom for atom in mol.GetAtoms()]
+    atoms_str = [atom.GetSymbol() for atom in atoms]
+    atoms_int = [atom.GetAtomicNum() for atom in atoms]
+    atoms_str = np.array(atoms_str)
+    atoms_int = np.array(atoms_int)
+
+    # init global arrays
+    global_energies = []
+    global_positions = []
+
+    # uniquenes representation (fchl, energy and rmsd)
+    global_representations = []
+
+    # TODO Need to check clockwork to exclude
+    # 0 - 0
+    # 0 - 1
+    # or anything that is done with lower-body iterators
+
+    # found
+    n_counter_all = 0
+    n_counter_unique = 0
+    n_counter_list = []
+    n_counter_flag = []
+
+    for torsion_body in torsion_bodies:
+        for res in clockwork_resolutions:
+
+            torsion_iterator = itertools.combinations(list(range(len(torsions))), torsion_body)
+
+            for i, idx in enumerate(torsion_iterator):
+
+                idx = list(idx)
+                torsions_comb = [list(x) for x in torsions[idx]]
+
+                if debug:
+                    here = time.time()
+
+                energies, positions, states = get_conformation(mol, res, torsions_comb)
+
+                N = len(energies)
+                n_counter_all += N
+
+                # Calculate uniqueness
+                n_unique, unique_idx = unique_method(global_representations, atoms_int, positions, energies, debug=debug)
+                n_counter_unique += n_unique
+
+                if n_unique > 0:
+
+                    energies = np.array(energies)
+                    positions = np.array(positions)
+
+                    # append global
+                    global_energies += list(energies[unique_idx])
+                    global_positions += list(positions[unique_idx])
+
+                    # print("states", states, np.round(energies, 2)[unique_idx])
+
+
+                if debug:
+                    workname = "n{:} r{:} t{:}".format(torsion_body, res, i)
+                    timestamp = N/ (time.time() - here)
+                    print("debug: {:}, converged={:}, speed={:5.1f}, new={:}".format(workname, N, timestamp, np.round(energies, 2)[unique_idx]))
+
+
+                # administration
+                n_counter_list.append(n_counter_unique)
+                n_counter_flag.append(torsion_body)
+
+
+    if debug: print("found {:} unique conformations".format(len(global_representations)))
+    qml_n, idx_qml = unique_fchl([], atoms_int, global_positions, global_energies)
+    if debug: print("found {:} unique qml conformations".format(qml_n))
+
+
+    # convergence
+    n_counter_list = np.array(n_counter_list)
+    x_axis = np.arange(n_counter_list.shape[0])
+    x_flags = np.unique(n_counter_flag)
+
+    for flag in x_flags:
+        y_view = np.where(n_counter_flag == flag)
+        plt.plot(x_axis[y_view], n_counter_list[y_view], ".")
+
+    plt.savefig("fig_conf_convergence.png")
+
+    print("out of total {:} minimizations".format(n_counter_all))
+
+    return global_energies, global_positions
+
+
 def main():
+
+    # TODO restartable
+    # - from .archive file
+    # - from reddis
+
+    # TODO Worker from one SDF file
+    # - add mol lib
+
+    # TODO Sane defaults
+
+    # TODO Check energy and fchl are the same?
 
     import argparse
     parser = argparse.ArgumentParser()
+    parser.add_argument('--debug', action="store_true", help='')
+
     parser.add_argument('-f', '--filename', type=str, help='', metavar='file')
 
-    parser.add_argument('--unique', action="store", help='[none, rmsd, fchl, energy]', default="fchl")
+    parser.add_argument('--unique', action="store", help='Method to find uniqeness of conformers [none, rmsd, fchl, energy]', default="fchl")
 
-    parser.add_argument('--torsion-body', nargs="+", default=[3], action="store", help="how many torsions to scan at the same time", metavar="int", type=int)
+    parser.add_argument('--torsion-body', nargs="+", default=[3], action="store", help="How many torsions to scan at the same time", metavar="int", type=int)
     parser.add_argument('--torsion-res', nargs="+", default=[4], action="store", help="Resolution of clockwork scan", metavar="int", type=int)
-
-
-    parser.add_argument('--plot-convergence')
-
 
     parser.add_argument('--scan', action="store_true", help='')
 
-    parser.add_argument('--debug', action="store_true", help='')
+    parser.add_argument('--read-archive', action="store_true", help='')
 
     args = parser.parse_args()
 
@@ -618,7 +720,8 @@ def main():
     if ext == "sdf":
 
         # load molecule from filename
-        mol = load_sdf(args.filename)
+        mollist = load_sdf(args.filename)
+        mol = mollist[0]
 
         if args.debug: print("debug: loaded sdf file")
 
@@ -639,7 +742,7 @@ def main():
 
 
 
-    if not args.scan:
+    if not args.read_archive:
 
         # intel on molecule
         atoms = [atom for atom in mol.GetAtoms()]
@@ -669,150 +772,59 @@ def main():
             quit()
 
 
-        # found
-        n_counter_all = 0
-        n_counter_unique = 0
-        n_counter_list = []
-        n_counter_flag = []
+        energies, positions = getthoseconformers(mol, torsions, args.torsion_body, args.torsion_res,
+            debug=args.debug,
+            unique_method=unique_method)
 
-        # TODO Need to check clockwork to exclude
-        # 0 - 0
-        # 0 - 1
-        # or anything that is done with lower-body iterators
+        print(energies)
 
-        for torsion_body in args.torsion_body:
+        f = open("test.xyz", 'w')
 
-            if args.debug: print("debug: scanning {:}-body torsions".format(torsion_body))
+        for pos in positions:
 
-            for res in args.torsion_res:
+            xyz = rmsd.set_coordinates(atoms_str, pos)
+            f.write(xyz)
+            f.write("\n")
 
-                torsion_iterator = itertools.combinations(list(range(len(torsions))), torsion_body)
-                for i, idx in enumerate(torsion_iterator):
-
-                    idx = list(idx)
-                    torsions_comb = [list(x) for x in torsions[idx]]
-
-                    here = time.time()
-
-                    energies, positions = get_conformation(mol, res, torsions_comb)
-
-                    n_counter_all += len(energies)
-
-                    if args.debug: print("debug: work {:} res {:} - got {:} conformations - time {:}".format(i, res, len(energies), time.time()-here))
-
-                    # Calculate uniqueness
-
-                    n_unique, unique_idx = unique_method(global_representations, atoms_int, positions, energies, debug=args.debug)
-                    n_counter_unique += n_unique
-
-                    if n_unique > 0:
-                        if args.debug: print("found {:} new conformers {:}".format(n_unique, np.array(energies)[unique_idx]))
-
-                        energies = np.array(energies)
-                        positions = np.array(positions)
-
-                        # append global
-                        global_energies += list(energies[unique_idx])
-                        global_positions += list(positions[unique_idx])
-
-                    # administration
-                    n_counter_list.append(n_counter_unique)
-                    n_counter_flag.append(torsion_body)
-
-
-        print("found {:} unique conformations".format(len(global_representations)))
-        qml_n, idx_qml = unique_fchl([], atoms_int, global_positions, global_energies)
-        print("found {:} unique qml conformations".format(qml_n))
-
-        bins = np.linspace(min(global_energies)-10, max(global_energies)+10, 50)
-        n, bins, patches = plt.hist(global_energies, bins)
-        plt.savefig("fig_conf_his_energies.png")
-        plt.clf()
-
-        # convergence
-
-        n_counter_list = np.array(n_counter_list)
-        x_axis = np.arange(n_counter_list.shape[0])
-        x_flags = np.unique(n_counter_flag)
-
-        for flag in x_flags:
-
-            y_view = np.where(n_counter_flag == flag)
-
-            plt.plot(x_axis[y_view], n_counter_list[y_view], ".")
-
-
-        plt.savefig("fig_conf_convergence.png")
-
-        print("out of total {:} minimizations".format(n_counter_all))
-
-
+        f.close()
 
     else:
 
-        axis_angles, axis_energies = scan_angles(mol, 25, torsions, globalopt=False)
-        axis_angles = np.array(axis_angles)
-        axis_angles = axis_angles.T
+        # Read archive workers from stdin
 
-        if axis_angles.shape[0] == 1:
+        import sys
 
-            plt.plot(axis_angles[0], axis_energies, '.')
+        for archive in sys.stdin:
 
-            axis_angles, axis_energies = scan_angles(mol, 25, torsions, globalopt=True)
-            axis_angles = np.array(axis_angles)
-            axis_angles = axis_angles.T
-            plt.plot(axis_angles[0], axis_energies, '.')
+            archive = archive.strip()
 
-            axis_energies = np.array(axis_energies)
+            f = open(archive, 'r')
+            lines = f.readlines()
+            f.close()
 
-            print(np.max(axis_energies), np.argmax(axis_energies))
+            for line in lines[1:]:
 
-            # idx, = np.where(axis_energies > 100.0)
-            # axis_energies[idx] = 0
-            # print(np.max(axis_energies))
+                line = line.strip()
+                line = line.split(", ")
 
-            # plt.ylim((-200, 200))
-            # plt.xlim((-200, 200))
+                molidx = int(line[0])
+                tbody = int(line[1])
+                tres = int(line[2])
+                toridx = line[3]
+                toridx = toridx.split()
+                toridx = [int(idx) for idx in toridx]
 
-            plt.plot(axis_angles[0], axis_energies, 'k.')
-            plt.savefig("fig_torsion_scan.png")
+                energies, positions = getthoseconformers(mol,
+                        torsions[toridx],
+                        [tbody],
+                        [tres],
+                    debug=args.debug,
+                    unique_method=unique_energy)
 
-        else:
-
-            axis_energies = np.array(axis_energies)
-            idx, = np.where(axis_energies > 0.0)
-            axis_energies[idx] = 0.0
-
-            # print(axis_energies[idx])
-
-            cb1 = plt.scatter(*axis_angles, c=axis_energies,
-                            cmap=plt.cm.get_cmap('Blues'))
-            plt.colorbar(cb1)
-
-            axis_angles, axis_energies = scan_angles(mol, 10, torsions, globalopt=True)
-            axis_angles = np.array(axis_angles)
-            axis_angles = axis_angles.T
-            plt.scatter(*axis_angles, c="k")
-
-            axis_energies = np.array(axis_energies)
-
-
-            plt.savefig("fig_torsion_double_scan.png")
-
-            plt.clf()
-
-
-            # histogram
-            bins = np.linspace(-10, 100, 100)
-            n, bins, patches = plt.hist(axis_energies, bins)
-            plt.savefig("fig_torsion_his_energies.png")
-
-
+                print(torsions)
 
 
     return
 
 if __name__ == '__main__':
     main()
-
-
