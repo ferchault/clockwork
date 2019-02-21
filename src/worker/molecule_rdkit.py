@@ -36,7 +36,8 @@ def get_atom(atom):
 
 def clockwork(n, debug=False):
     """
-    Get list of angles scans based on resolution
+
+    get start, step size and no. of steps from clockwork resolution n
 
     """
 
@@ -57,6 +58,11 @@ def clockwork(n, debug=False):
 
 
 def get_angles(n, debug=False):
+    """
+
+    return angles to check at clockwork resolution n
+
+    """
 
     start, step, n_steps = clockwork(n)
     if n_steps > 1:
@@ -65,6 +71,7 @@ def get_angles(n, debug=False):
         angles = [start]
 
     return angles
+
 
 def compare_positions(pos, pos_list, threshold=0.005):
     """
@@ -86,7 +93,15 @@ def compare_positions(pos, pos_list, threshold=0.005):
 
     return True
 
+
 def align(q_coord, p_coord):
+    """
+
+    align q and p.
+
+    return q coord rotated
+
+    """
 
     U = rmsd.kabsch(q_coord, p_coord)
     q_coord = np.dot(q_coord, U)
