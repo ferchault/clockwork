@@ -3,6 +3,7 @@ import time
 import os
 import redis
 import sys
+import hashlib
 
 class Taskqueue(object):
 	def __init__(self, connectionstring, projectprefix):
@@ -21,8 +22,10 @@ class Taskqueue(object):
 		task = self._con.rpoplpush(self._prefix + '_Queue', self._prefix + '_Running')
 		if task is None:
 			return None
+
+		self._taskid = hashlib.md5(task).hexdigest()
 		self._starttime = time.time()
-		self._con.hset(self._prefix + '_Started', task, self._starttime)
+		self._con.hset(self._prefix + '_Started', self._taskid, self._starttime)
 		return task
 		
 	def _store_result(self, taskstring, resultstring, logmessage=None):
@@ -30,7 +33,7 @@ class Taskqueue(object):
 		# remove server-side backup
 		pipeline = self._con.pipeline()
 		pipeline.lrem(self._prefix + '_Running', 1, taskstring)
-		pipeline.hdel(self._prefix + '_Started', taskstring)
+		pipeline.hdel(self._prefix + '_Started', self._taskid)
 
 		# Store results and logs
 		pipeline.lpush(self._prefix + '_Results', resultstring)
