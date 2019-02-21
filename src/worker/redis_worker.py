@@ -28,20 +28,24 @@ class Taskqueue(object):
 	def _store_result(self, taskstring, resultstring, logmessage=None):
 		""" Signals task completion to redis and stores the results."""
 		# remove server-side backup
-		self._con.lrem(self._prefix + '_Running', 1, taskstring)
-		self._con.hdel(self._prefix + '_Started', taskstring)
+		pipeline = self._con.pipeline()
+		pipeline.lrem(self._prefix + '_Running', 1, taskstring)
+		pipeline.hdel(self._prefix + '_Started', taskstring)
 
 		# Store results and logs
-		self._con.lpush(self._prefix + '_Results', resultstring)
+		pipeline.lpush(self._prefix + '_Results', resultstring)
 		if logmessage is not None:
-			self._con.hset(self._prefix + '_Log', taskstring, logmessage)
+			pipeline.hset(self._prefix + '_Log', taskstring, logmessage)
+		pipeline.execute()
 
 		# Update stats
 		unixminute = int(time.time() / 60)
 		duration = time.time() - self._starttime
 		statskey = self._prefix + '_Stats:%d' % unixminute
-		self._con.rpush(statskey, duration)
-		self._con.expire(statskey, 3600)
+		pipeline = self._con.pipeline()
+		pipeline.rpush(statskey, duration)
+		pipeline.expire(statskey, 3600)
+		pipeline.execute()
 	
 	def _get_deadline(self):
 		""" Calculates the deadline of job termination. Returns a unix time stamp. When run outside SLURM, returns 0. """
