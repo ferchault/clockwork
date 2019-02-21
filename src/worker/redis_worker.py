@@ -3,6 +3,8 @@ import time
 import os
 import redis
 import sys
+import subprocess
+import shlex
 import hashlib
 
 class Taskqueue(object):
@@ -52,7 +54,29 @@ class Taskqueue(object):
 	
 	def _get_deadline(self):
 		""" Calculates the deadline of job termination. Returns a unix time stamp. When run outside SLURM, returns 0. """
-		return 0
+		jobid = os.getenv('SLURM_JOB_ID')
+		if jobid is None:
+			return 0
+
+		cmd = 'squeue -h -j %s -o "%%L"' % jobid
+		try:
+			p = subprocess.run(shlex.split(cmd), capture_output=True)
+		except:
+			return 0
+		remaining = p.stdout
+
+		# parse time format
+		days = 0
+		if '-' in remaining:
+			days, rest = remaining.split('-')
+		else:
+			rest = remaining
+		try:
+			hours, minutes, seconds = rest.split(':')
+		except:
+			return 0
+
+		return time.time() + ((int(days)*24 + int(hours))*60 + int(minutes))*60 + int(seconds)
 
 	def main_loop(self, callback):
 		deadline = self._get_deadline()
