@@ -34,9 +34,6 @@ def load_sdf(filename):
 
 
 def get_representations_fchl(atoms, coordinates_list):
-    """
-
-    """
 
     replist = []
 
@@ -48,9 +45,6 @@ def get_representations_fchl(atoms, coordinates_list):
 
 
 def get_kernel_fchl(rep_alpha, rep_beta):
-    """
-
-    """
 
     sigmas = [0.8]
 
@@ -246,17 +240,21 @@ def clockwork(res, debug=False):
         res int resolution
         debug boolean
 
+
     """
 
-    if res == 1:
+    if res == 0:
         start = 0
-        step = 0
-        n_steps = 0
+        step = 360
+        n_steps = 1
 
     else:
-        start = 360.0 / 2 ** (res-1)
-        step = 360.0 / (2**(res-2))
-        n_steps = 2**(res-2)
+
+        # res = max([res, 1])
+
+        start = 360.0 / 2.0 ** (res)
+        step = 360.0 / 2.0 ** (res-1)
+        n_steps = 2 ** (res - 1)
 
     if debug:
         print(res, step, n_steps, start)
@@ -271,18 +269,17 @@ def get_angles(res, num_torsions):
 
     """
 
-    start, step, n_steps = clockwork(res)
+    if type(res) == int:
+        res = [res]*num_torsions
 
-    if n_steps > 1:
-        angles = np.arange(start, start+step*n_steps, step)
-    else:
-        angles = [start]
+    angles = []
 
-    angles = [0] + list(angles)
+    for r in res:
+        start, step, n_steps = clockwork(r)
+        scan = np.arange(start, start+step*n_steps, step)
+        angles.append(scan)
 
-    iterator = itertools.product(angles, repeat=num_torsions)
-
-    next(iterator)
+    iterator = itertools.product(*angles)
 
     return iterator
 
@@ -436,13 +433,12 @@ def run_forcefield2(ff, steps, energy=1e-2, force=1e-3):
     return status
 
 
-
 def get_conformation(mol, res, torsions):
     """
 
     param:
         rdkit mol
-        clockwork resolution
+        clockwork resolutions
         torsions indexes
 
     return
@@ -479,7 +475,9 @@ def get_conformation(mol, res, torsions):
     axis_pos = []
 
     # Get resolution angles
-    for angles in get_angles(res, n_torsions):
+    angle_iterator = get_angles(res, n_torsions)
+
+    for angles in angle_iterator:
 
         # Reset positions
         for i, pos in enumerate(origin):
@@ -512,8 +510,6 @@ def get_conformation(mol, res, torsions):
 
         # Get current positions
         pos = conformer.GetPositions()
-        # pos -= rmsd.centroid(pos)
-        # pos = align(pos, origin)
 
         axis_pos += [pos]
         energies += [energy]
@@ -573,20 +569,48 @@ def get_torsions(mol):
     return np.array(rtnidxs, dtype=int)
 
 
-def asdf(some_archive):
-    """
+def conformers(mol, torsions, resolutions, unique_method=unique_energy, debug=False):
 
-    arg:
+    # time
+    here = time.time()
+
+    # Find all
+    energies, positions, states = get_conformation(mol, resolutions, torsions)
+
+    energies = np.array(energies)
+    positions = np.array(positions)
+
+    # Find uniques
+    u_len, u_idx = unique_method([], [], positions, energies, debug=debug)
+
+    N = len(energies)
+
+    timestamp = N/ (time.time() - here)
+    # timestamp = (time.time() - here)
+
+    # print("debug: {:}, converged={:}, speed={:5.1f}, new={:}".format("", N, timestamp, np.round(energies, 2)[u_idx]))
+
+    return energies[u_idx], positions[u_idx], u_idx
 
 
-    return:
+def run_jobs(mollist, torsionlist, jobs):
+
+    for job in jobs:
+
+        mol_idx = job["mol"]
+        torsions_idx = job["torsions"]
+        resolutions = job["resolutions"]
+
+        mol = mollist[mol_idx]
+        torsions = get_torsions(mol)
+
+        torsions = torsions[torsions_idx]
+        # torsions = torsionlist[mol_idx][torsions_idx]
+
+        energies, positions, u_idx = conformers(mollist[mol_idx], torsions, resolutions)
 
 
-    """
-
-
-
-    return positions
+    return
 
 
 def getthoseconformers(mol, torsions, torsion_bodies, clockwork_resolutions, debug=False, unique_method=unique_energy):
@@ -601,6 +625,7 @@ def getthoseconformers(mol, torsions, torsion_bodies, clockwork_resolutions, deb
     # init global arrays
     global_energies = []
     global_positions = []
+    global_origins = []
 
     # uniquenes representation (fchl, energy and rmsd)
     global_representations = []
@@ -619,6 +644,8 @@ def getthoseconformers(mol, torsions, torsion_bodies, clockwork_resolutions, deb
     for torsion_body in torsion_bodies:
         for res in clockwork_resolutions:
 
+            # TODO this is basically moved to workpackages
+            # with the res as well
             torsion_iterator = itertools.combinations(list(range(len(torsions))), torsion_body)
 
             for i, idx in enumerate(torsion_iterator):
@@ -647,13 +674,18 @@ def getthoseconformers(mol, torsions, torsion_bodies, clockwork_resolutions, deb
                     global_energies += list(energies[unique_idx])
                     global_positions += list(positions[unique_idx])
 
+                    # TODO is this enough?
+                    global_origins += [(res, i)]
+
                     # print("states", states, np.round(energies, 2)[unique_idx])
 
 
                 if debug:
+
                     workname = "n{:} r{:} t{:}".format(torsion_body, res, i)
-                    timestamp = N/ (time.time() - here)
-                    print("debug: {:}, converged={:}, speed={:5.1f}, new={:}".format(workname, N, timestamp, np.round(energies, 2)[unique_idx]))
+                    # timestamp = N/ (time.time() - here)
+                    timestamp = (time.time() - here)
+                    print("debug: {:}, converged={:}, time={:5.1f}, new={:}".format(workname, N, timestamp, np.round(energies, 2)[unique_idx]))
 
 
                 # administration
@@ -665,21 +697,20 @@ def getthoseconformers(mol, torsions, torsion_bodies, clockwork_resolutions, deb
     qml_n, idx_qml = unique_fchl([], atoms_int, global_positions, global_energies)
     if debug: print("found {:} unique qml conformations".format(qml_n))
 
-
     # convergence
-    n_counter_list = np.array(n_counter_list)
-    x_axis = np.arange(n_counter_list.shape[0])
-    x_flags = np.unique(n_counter_flag)
-
-    for flag in x_flags:
-        y_view = np.where(n_counter_flag == flag)
-        plt.plot(x_axis[y_view], n_counter_list[y_view], ".")
+    # n_counter_list = np.array(n_counter_list)
+    # x_axis = np.arange(n_counter_list.shape[0])
+    # x_flags = np.unique(n_counter_flag)
+    #
+    # for flag in x_flags:
+    #     y_view = np.where(n_counter_flag == flag)
+    #     plt.plot(x_axis[y_view], n_counter_list[y_view], ".")
 
     plt.savefig("fig_conf_convergence.png")
 
     print("out of total {:} minimizations".format(n_counter_all))
 
-    return global_energies, global_positions
+    return global_energies, global_positions, global_origins
 
 
 def main():
@@ -701,7 +732,7 @@ def main():
 
     parser.add_argument('-f', '--filename', type=str, help='', metavar='file')
 
-    parser.add_argument('--unique', action="store", help='Method to find uniqeness of conformers [none, rmsd, fchl, energy]', default="fchl")
+    parser.add_argument('--unique', action="store", help='Method to find uniqeness of conformers [none, rmsd, fchl, energy]', default="energy")
 
     parser.add_argument('--torsion-body', nargs="+", default=[3], action="store", help="How many torsions to scan at the same time", metavar="int", type=int)
     parser.add_argument('--torsion-res', nargs="+", default=[4], action="store", help="Resolution of clockwork scan", metavar="int", type=int)
@@ -709,6 +740,7 @@ def main():
     parser.add_argument('--scan', action="store_true", help='')
 
     parser.add_argument('--read-archive', action="store_true", help='')
+    parser.add_argument('--read-from-reddis', action="store_true", help='')
 
     args = parser.parse_args()
 
@@ -721,14 +753,17 @@ def main():
 
         # load molecule from filename
         mollist = load_sdf(args.filename)
+
+        n_mol = len(mollist)
+
         mol = mollist[0]
 
-        if args.debug: print("debug: loaded sdf file")
+        if args.debug: print("debug: loaded {:} sdf".format(n_mol))
 
         # Find all torsion angles
         torsions = get_torsions(mol)
 
-        if args.debug: print("debug: found {:} torsions".format(torsions.shape[0]))
+        if args.debug: print("debug: found {:} torsions in 0".format(torsions.shape[0]))
 
     elif ext == "archive":
 
@@ -792,6 +827,26 @@ def main():
 
         # Read archive workers from stdin
 
+        jobs = {'mol': [1, 2, 3]}
+
+        jobs = [
+            {"m": 0, "t": [0, 1], "r": [2, 3]},
+            {"mol": 0, "torsions": [0, 2], "resolutions": [2, 2]},
+            {"mol": 0, "torsions": [0, 3], "resolutions": [2, 2]},
+            {"mol": 0, "torsions": [0, 4], "resolutions": [2, 2]},
+            {"mol": 5000, "torsions": [0, 1, 2], "resolutions": [3, 3, 3]},
+            {"mol": 0, "torsions": [0, 1, 3], "resolutions": [3, 3, 3]},
+            # {"mol": 0, "torsions": [0, 1, 4], "resolutions": [3, 3, 3]},
+            # {"mol": 0, "torsions": [0, 1, 5], "resolutions": [3, 3, 3]},
+            # {"mol": 0, "torsions": [0, 1, 6], "resolutions": [3, 3, 3]},
+            # {"mol": 0, "torsions": [0, 1, 7], "resolutions": [3, 3, 3]},
+            # {"mol": 0, "torsions": [0, 1, 7], "resolutions": [3, 3, 4]},
+        ]
+
+        run_jobs(mollist, [torsions], jobs)
+
+        quit()
+
         import sys
 
         for archive in sys.stdin:
@@ -808,21 +863,19 @@ def main():
                 line = line.split(", ")
 
                 molidx = int(line[0])
-                tbody = int(line[1])
-                tres = int(line[2])
-                toridx = line[3]
+                toridx = line[1]
                 toridx = toridx.split()
                 toridx = [int(idx) for idx in toridx]
+                torres = line[2]
+                torres = torres.split()
+                torres = [int(idx) for idx in torres]
 
-                energies, positions = getthoseconformers(mol,
-                        torsions[toridx],
-                        [tbody],
-                        [tres],
-                    debug=args.debug,
-                    unique_method=unique_energy)
+                print(toridx, torres)
 
-                print(torsions)
+                energies, coordinates, origins = conformers(
+                        mol, torsions[toridx], torres)
 
+                print(origins)
 
     return
 
