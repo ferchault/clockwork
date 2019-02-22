@@ -7,12 +7,14 @@
 #SBATCH --output=/dev/null
 #SBATCH --time=00:30:00
 #SBATCH --time-min=00:05:00
-#SBATCH --partition=WAT
-#SBATCH --no-requeue
+#SBATCH --qos=30min
 
-connection=$1
+module load Anaconda3/5.0.1
 
-anaconda worker.py \
+source activate /scicore/home/lilienfeld/rudorff/opt/conda/rdkit
+connection=$(cat /scicore/home/lilienfeld/rudorff/.redis-credentials)
+
+python3 worker.py \
         -f \
         -torsion-list \
         --connect-redis "$1"
