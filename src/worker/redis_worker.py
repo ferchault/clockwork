@@ -5,6 +5,7 @@ import redis
 import sys
 import subprocess
 import shlex
+import gzip
 import hashlib
 
 class Taskqueue(object):
@@ -92,6 +93,10 @@ class Taskqueue(object):
 	def insert(self, taskstring):
 		""" Enqueues a task. """
 		self._con.lpush(self._prefix + '_Queue', taskstring)
+
+	def print_one_result(self):
+		result = self._con.lindex(self._prefix + '_Results', 0)
+		print (gzip.decompress(result).decode('utf8'))
 
 def do_work(task):
 	""" Sample task evaluation. Returns a result as string and an optional log message."""
