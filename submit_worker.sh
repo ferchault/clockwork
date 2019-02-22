@@ -9,6 +9,7 @@
 #SBATCH --time-min=00:05:00
 #SBATCH --qos=30min
 
+module load intel/2019.01
 module load Anaconda3/5.0.1
 
 source activate /scicore/home/lilienfeld/rudorff/opt/conda/rdkit
