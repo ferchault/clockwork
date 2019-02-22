@@ -473,7 +473,7 @@ def get_conformation(mol, res, torsions):
     # Get conformer and origin
     conformer = mol.GetConformer()
     origin = conformer.GetPositions()
-    origin -= rmsd.centroid(origin)
+    # TODO origin -= rmsd.centroid(origin)
 
     # Origin angle
     origin_angles = []
@@ -804,7 +804,7 @@ def main():
 
     elif ext == "gz":
 
-        inf = gzip.open(filename)
+        inf = gzip.open(args.filename)
         moldb = load_sdf_file(inf)
 
     else:
