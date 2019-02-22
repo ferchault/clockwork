@@ -94,9 +94,13 @@ class Taskqueue(object):
 		""" Enqueues a task. """
 		self._con.lpush(self._prefix + '_Queue', taskstring)
 
-	def print_one_result(self):
-		result = self._con.lindex(self._prefix + '_Results', 0)
-		print (gzip.decompress(result).decode('utf8'))
+	def get_results(self, purge_after=False):
+		""" Fetches and optionally deletes the results."""
+		results = self._con.lrange(self._prefix + '_Results')
+		results = [gzip.decompress(_).decode('utf8') for _ in results]
+		if purge_after:
+			self._con.delete(self._prefix + '_Results')
+		return results
 
 def do_work(task):
 	""" Sample task evaluation. Returns a result as string and an optional log message."""
