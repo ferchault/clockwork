@@ -61,10 +61,10 @@ class Taskqueue(object):
 
 		cmd = 'squeue -h -j %s -o "%%L"' % jobid
 		try:
-			p = subprocess.run(shlex.split(cmd), capture_output=True)
+			p = subprocess.run(shlex.split(cmd), stdout=subprocess.PIPE)
 		except:
 			return 0
-		remaining = p.stdout
+		remaining = p.stdout.decode('utf8').strip()
 
 		# parse time format
 		days = 0
