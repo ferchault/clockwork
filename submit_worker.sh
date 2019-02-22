@@ -15,7 +15,7 @@ source activate /scicore/home/lilienfeld/rudorff/opt/conda/rdkit
 connection=$(cat /scicore/home/lilienfeld/rudorff/.redis-credentials)
 
 python3 worker.py \
-        -f \
-        -torsion-list \
+        -f /scicore/home/lilienfeld/bexusi36/qm9-C7O2H10/full.sdf.gz \
+        --torsion-list /scicore/home/lilienfeld/bexusi36/qm9-C7O2H10/list_torsions_idx \
         --connect-redis "$1"
 
