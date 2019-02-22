@@ -1,4 +1,7 @@
 
+import gzip
+import json
+
 import itertools
 import time
 
@@ -639,17 +642,22 @@ def run_jobs(moldb, tordb, jobs):
         # minimize
         energies, positions, u_idx = conformers(moldb[mol_idx], torsions, resolutions)
 
-        print(u_idx)
-
         origin = [mol_idx, torsions_idx, resolutions]
 
         # TODO Choice with guido
-        # for energy, coord, ui in zip(energies, positions, u_idx):
-        #     print(origin, energy, coord.tolist(), ui)
+        for energy, coord, ui in zip(energies, positions, u_idx):
+
+            result = json.dumps([origin, int(ui), energy, np.round(coord, 5).flatten().tolist()])
+            result = result.replace(" ", "")
+
+            data.append(result)
 
         print("calculated", job, len(energies))
 
-        quit()
+
+    data = "\n".join(data)
+    data = gzip.compress(data.encode())
+    print(len(data))
 
     return data, None
 
@@ -836,10 +844,11 @@ def main():
         import redis_worker as rediswrap
 
         # make queue
-        tasks = rediswrap.Taskqueue(os.getenv('CHEMSPACELAB_REDIS_CONNECTION'), 'DEBUG')
+        tasks = rediswrap.Taskqueue(args.connect_redis, 'DEBUG')
 
         # Submit job list
-        # if False:
+        # if True:
+        #     print("submitting jobs")
         #     f = open("/home/charnley/dev/qml-qm9/qm9-C7O2H10/sample.workpackages")
         #     for i, line in enumerate(f):
         #
