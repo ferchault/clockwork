@@ -5,9 +5,9 @@ import json
 import itertools
 import time
 
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 import numpy as np
-import rmsd
+# import rmsd
 from qml import fchl
 
 from rdkit import Chem
@@ -473,7 +473,7 @@ def get_conformation(mol, res, torsions):
     # Get conformer and origin
     conformer = mol.GetConformer()
     origin = conformer.GetPositions()
-    origin -= rmsd.centroid(origin)
+    # TODO origin -= rmsd.centroid(origin)
 
     # Origin angle
     origin_angles = []
@@ -754,7 +754,7 @@ def getthoseconformers(mol, torsions, torsion_bodies, clockwork_resolutions, deb
     #     y_view = np.where(n_counter_flag == flag)
     #     plt.plot(x_axis[y_view], n_counter_list[y_view], ".")
 
-    plt.savefig("fig_conf_convergence.png")
+    # plt.savefig("fig_conf_convergence.png")
 
     print("out of total {:} minimizations".format(n_counter_all))
 
@@ -804,7 +804,7 @@ def main():
 
     elif ext == "gz":
 
-        inf = gzip.open(filename)
+        inf = gzip.open(args.filename)
         moldb = load_sdf_file(inf)
 
     else:
