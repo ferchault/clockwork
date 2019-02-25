@@ -135,6 +135,8 @@ class Taskqueue(object):
 		statsentries = sum([self._con.llen(_) for _ in self._con.keys('%s_Stats:*' % projectname)])
 		print ('    Packages / h:', statsentries)
 
+	def has_work(self, projectname):
+		return self._con.llen('%s_Queue' % projectname) > 0
 
 def do_work(task):
 	""" Sample task evaluation. Returns a result as string and an optional log message."""
@@ -142,8 +144,18 @@ def do_work(task):
 	return "result", "Another information"
 
 if __name__ == '__main__':
+	import argparse
+	parser = argparse.ArgumentParser()
+	parser.add_argument('--status', action="store_true", help='')
+	parser.add_argument('--haswork', type=str, help='Requires a project name.', metavar='file')
+
 	tasks = Taskqueue(os.getenv('CHEMSPACELAB_REDIS_CONNECTION'), 'DEBUG')
 
-	for project in sorted(tasks.discover_projects()):
-		tasks.print_stats(project)
+	args = parser.parse_args()
 
+	if args.haswork:
+		sys.exit(not tasks.has_work(args.haswork))
+
+	if args.status:
+		for project in sorted(tasks.discover_projects()):
+			tasks.print_stats(project)
