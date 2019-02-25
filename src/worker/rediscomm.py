@@ -144,6 +144,6 @@ def do_work(task):
 if __name__ == '__main__':
 	tasks = Taskqueue(os.getenv('CHEMSPACELAB_REDIS_CONNECTION'), 'DEBUG')
 
-	for project in tasks.discover_projects():
+	for project in sorted(tasks.discover_projects()):
 		tasks.print_stats(project)
 
