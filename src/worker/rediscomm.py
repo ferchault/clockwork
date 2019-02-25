@@ -110,24 +110,24 @@ class Taskqueue(object):
 			projects += [_.decode('utf8')[:-(len(kind)+1)] for _ in keys]
 		return list(set(projects))
 
-	def get_orphaned(self, projectname):
+	def get_orphaned(self):
 		""" Returns a list of orphaned task ids. """
 		now = time.time()
 		orphaned = []
-		for taskid, starttime in self._con.hscan_iter('%s_Started' % projectname):
+		for taskid, starttime in self._con.hscan_iter('%s_Started' % self._prefix):
 			if now - float(starttime) > 20*60:
 				orphaned.append(taskid)
 		return orphaned
 
-	def requeue_orphaned(self, projectname):
-		orphaned = self.get_orphaned(projectname)
+	def requeue_orphaned(self):
+		orphaned = self.get_orphaned(self._prefix)
 
 		running = set(self._con.lrange(self._prefix + '_Running', 0, -1))
 		for workpackage in running:
 			taskid = hashlib.md5(workpackage).hexdigest()
 			if taskid in orphaned:
-				self._con.hdel('%s_Started' % projectname, taskid)
-				self._con.lrem('%s_Running' % projectname, 0)
+				self._con.hdel('%s_Started' % self._prefix, taskid)
+				self._con.lrem('%s_Running' % self._prefix, 0)
 				self.insert(workpackage)
 
 	def print_stats(self, projectname):
@@ -146,8 +146,8 @@ class Taskqueue(object):
 		statsentries = sum([self._con.llen(_) for _ in self._con.keys('%s_Stats:*' % projectname)])
 		print ('    Packages / h:', statsentries)
 
-	def has_work(self, projectname):
-		return self._con.llen('%s_Queue' % projectname) > 0
+	def has_work(self):
+		return self._con.llen('%s_Queue' % self._prefix) > 0
 
 def do_work(task):
 	""" Sample task evaluation. Returns a result as string and an optional log message."""
@@ -158,19 +158,20 @@ if __name__ == '__main__':
 	import argparse
 	parser = argparse.ArgumentParser()
 	parser.add_argument('--status', action="store_true", help='')
-	parser.add_argument('--haswork', type=str, help='Requires a project name.', metavar='file')
-	parser.add_argument('--requeue_orphaned', type=str, help='Requires a project name.', metavar='file')
-
-	tasks = Taskqueue(os.getenv('CHEMSPACELAB_REDIS_CONNECTION'), 'DEBUG')
+	parser.add_argument('--haswork', type=str, help='Requires a project name.', metavar='project')
+	parser.add_argument('--requeue_orphaned', type=str, help='Requires a project name.', metavar='project')
 
 	args = parser.parse_args()
 
 	if args.haswork:
-		sys.exit(not tasks.has_work(args.haswork))
+		tasks = Taskqueue(os.getenv('CHEMSPACELAB_REDIS_CONNECTION'), args.haswork)
+		sys.exit(not tasks.has_work())
 
 	if args.status:
+		tasks = Taskqueue(os.getenv('CHEMSPACELAB_REDIS_CONNECTION'), 'DEBUG')
 		for project in sorted(tasks.discover_projects()):
 			tasks.print_stats(project)
 
 	if args.requeue_orphaned:
-		tasks.requeue_orphaned(args.requeue_orphaned)
+		tasks = Taskqueue(os.getenv('CHEMSPACELAB_REDIS_CONNECTION'), args.requeue_orphaned)
+		tasks.requeue_orphaned()
