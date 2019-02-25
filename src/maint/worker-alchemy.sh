@@ -5,15 +5,16 @@
 #SBATCH --ntasks=1
 #SBATCH --error=/dev/null
 #SBATCH --output=/dev/null
-#SBATCH --time=00:30:00
 #SBATCH --time-min=00:05:00
-#SBATCH --qos=30min
+#SBATCH --time=02:00:00
+#SBATCH --partition=normal,classic,long
 
-/home/vonrudorff/opt/conda/install/bin/conda activate /home/vonrudorff/opt/conda/rdkit
+. /home/vonrudorff/opt/conda/install/etc/profile.d/conda.sh
+conda activate /home/vonrudorff/opt/conda/rdkit
 connection=$(cat /home/vonrudorff/.redis-credentials)
 
 python3 /home/vonrudorff/workcopies/clockwork/src/worker/worker.py \
         -f /home/vonrudorff/workcopies/qm9-C7O2H10/full.sdf.gz \
-        --torsions-file /scicore/home/lilienfeld/bexusi36/qm9-C7O2H10/list_torsions_idx \
+        --torsions-file /home/vonrudorff/workcopies/qm9-C7O2H10/list_torsions_idx \
         --connect-redis "$connection"
 
