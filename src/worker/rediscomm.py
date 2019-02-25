@@ -119,6 +119,17 @@ class Taskqueue(object):
 				orphaned.append(taskid)
 		return orphaned
 
+	def requeue_orphaned(self, projectname):
+		orphaned = self.get_orphaned(projectname)
+
+		running = set(self._con.lrange(self._prefix + '_Running', 0, -1))
+		for workpackage in running:
+			taskid = hashlib.md5(workpackage).hexdigest()
+			if taskid in orphaned:
+				self._con.hdel('%s_Started' % projectname, taskid)
+				self._con.lrem('%s_Running' % projectname, 0)
+				self.insert(workpackage)
+
 	def print_stats(self, projectname):
 		print ('Summary for project %s' % projectname)
 		print ('  Waiting:       ', self._con.llen('%s_Queue' % projectname))
@@ -148,6 +159,7 @@ if __name__ == '__main__':
 	parser = argparse.ArgumentParser()
 	parser.add_argument('--status', action="store_true", help='')
 	parser.add_argument('--haswork', type=str, help='Requires a project name.', metavar='file')
+	parser.add_argument('--requeue_orphaned', type=str, help='Requires a project name.', metavar='file')
 
 	tasks = Taskqueue(os.getenv('CHEMSPACELAB_REDIS_CONNECTION'), 'DEBUG')
 
@@ -159,3 +171,6 @@ if __name__ == '__main__':
 	if args.status:
 		for project in sorted(tasks.discover_projects()):
 			tasks.print_stats(project)
+
+	if args.requeue_orphaned:
+		tasks.requeue_orphaned(args.requeue_orphaned)
