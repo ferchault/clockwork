@@ -102,6 +102,40 @@ class Taskqueue(object):
 			self._con.delete(self._prefix + '_Results')
 		return results
 
+	def discover_projects(self):
+		""" Finds valid projects using the selected database."""
+		projects = []
+		for kind in 'Results Queue Log Running Started'.split():
+			keys = self._con.keys('*_%s' % kind)
+			projects += [_.decode('utf8')[:-(len(kind)+1)] for _ in keys]
+		return list(set(projects))
+
+	def get_orphaned(self, projectname):
+		""" Returns a list of orphaned task ids. """
+		now = time.time()
+		orphaned = []
+		for taskid, starttime in self._con.hscan_iter('%s_Started' % projectname):
+			if now - float(starttime) > 20*60:
+				orphaned.append(taskid)
+		return orphaned
+
+	def print_stats(self, projectname):
+		print ('Summary for project %s' % projectname)
+		print ('  Waiting:       ', self._con.llen('%s_Queue' % projectname))
+		print ('  Results:       ', self._con.llen('%s_Results' % projectname))
+		errors = self._con.hlen('%s_Log' % projectname)
+		errorattn = '!' if errors > 0 else ' '
+		print ('%s Errors in log: ' % errorattn, errors)
+		orphaned = len(self.get_orphaned(projectname))
+		orphanattn = '!' if orphaned > 0 else ' '
+		print ('%s Orphaned:      ' % orphanattn, orphaned)
+		print ('  Running:       ', self._con.llen('%s_Running' % projectname) - orphaned)
+
+		# get rate info
+		statsentries = sum([self._con.llen(_) for _ in self._con.keys('%s_Stats:*' % projectname)])
+		print ('    Packages / h:', statsentries)
+
+
 def do_work(task):
 	""" Sample task evaluation. Returns a result as string and an optional log message."""
 	time.sleep(2)
@@ -109,10 +143,7 @@ def do_work(task):
 
 if __name__ == '__main__':
 	tasks = Taskqueue(os.getenv('CHEMSPACELAB_REDIS_CONNECTION'), 'DEBUG')
-	for i in range(3):
-		tasks.insert('test%d' % i)
-	try:
-		tasks.main_loop(do_work)
-	except:
-		# Ugly catch-all handler: no SLURM log file wanted!
-		sys.exit(1)
+
+	for project in tasks.discover_projects():
+		tasks.print_stats(project)
+
