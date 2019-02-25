@@ -96,7 +96,7 @@ class Taskqueue(object):
 
 	def get_results(self, purge_after=False):
 		""" Fetches and optionally deletes the results."""
-		results = self._con.lrange(self._prefix + '_Results')
+		results = self._con.lrange(self._prefix + '_Results', 0, -1)
 		results = [gzip.decompress(_).decode('utf8') for _ in results]
 		if purge_after:
 			self._con.delete(self._prefix + '_Results')
