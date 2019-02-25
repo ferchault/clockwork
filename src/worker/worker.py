@@ -661,6 +661,16 @@ def run_jobs(moldb, tordb, jobs):
     return data, None
 
 
+def wraprunjobs(moldb, tordb, jobs):
+
+    try:
+        rtn = run_jobs(moldb, tordb, jobs)
+    except:
+        rtn = ([], "arrgh it crashed")
+
+    return rtn
+
+
 def getthoseconformers(mol, torsions, torsion_bodies, clockwork_resolutions, debug=False, unique_method=unique_energy):
 
     # intel on molecule
@@ -856,7 +866,7 @@ def main():
         #         line = line.strip()
         #         tasks.insert(line)
 
-        do_work = lambda x: run_jobs(moldb, tordb, x)
+        do_work = lambda x: wraprunjobs(moldb, tordb, x)
         tasks.main_loop(do_work)
 
 
