@@ -120,15 +120,24 @@ class Taskqueue(object):
 		return orphaned
 
 	def requeue_orphaned(self):
-		orphaned = self.get_orphaned(self._prefix)
+		orphaned = [_.decode('utf8') for _ in self.get_orphaned()]
 
 		running = set(self._con.lrange(self._prefix + '_Running', 0, -1))
+		tobeinserted = []
 		for workpackage in running:
 			taskid = hashlib.md5(workpackage).hexdigest()
 			if taskid in orphaned:
 				self._con.hdel('%s_Started' % self._prefix, taskid)
-				self._con.lrem('%s_Running' % self._prefix, 0)
-				self.insert(workpackage)
+				self._con.lrem('%s_Running' % self._prefix, 0, workpackage)
+				tobeinserted.append(workpackage)
+
+		# remove orphans without workpackage in running state
+		for orphan in orphaned:
+			self._con.hdel('%s_Started' % self._prefix, orphan)
+
+		# insert
+		for workpackage in tobeinserted:
+			self.insert(workpackage)
 
 	def print_stats(self, projectname):
 		print ('Summary for project %s' % projectname)
