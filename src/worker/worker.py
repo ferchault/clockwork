@@ -624,7 +624,6 @@ def run_jobs(moldb, tordb, jobs):
 
     data = []
 
-
     # assume same molecule for all jobs!
     molidx = jobs[0].split(",")[0]
     molidx = int(molidx)
@@ -669,13 +668,11 @@ def run_jobs(moldb, tordb, jobs):
         jobdata = merge.energyandfchl(jobdata, atoms_int)
         data += jobdata
 
-        print("calculated", job, len(data), "time={:5.2f}".format(time.time()-here))
+        # print("calculated", job, len(data), "time={:5.2f}".format(time.time()-here))
 
     # Merge same conformers, by energy
     # merge wp-wise
-    # data = merge.energyandfchl(data, atoms_int, debug=True)
-
-    print("and a total of {:} unique results".format(len(data)))
+    data = merge.energyandfchl(data, atoms_int)
 
     for i, result in enumerate(data):
         result = json.dumps(result)
