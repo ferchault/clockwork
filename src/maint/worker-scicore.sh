@@ -12,6 +12,8 @@
 module load intel/2019.01
 module load Anaconda3/5.0.1
 
+export OMP_NUM_THREADS=1
+
 source activate /scicore/home/lilienfeld/rudorff/opt/conda/rdkit
 connection=$(cat /scicore/home/lilienfeld/rudorff/.redis-credentials)
 export PYTHONPATH=/scicore/home/lilienfeld/rudorff/.local/lib/python3.7/site-packages:$PYTHONPATH

@@ -9,6 +9,8 @@
 #SBATCH --time=02:00:00
 #SBATCH --partition=normal,classic,long
 
+export OMP_NUM_THREADS=1
+
 . /home/vonrudorff/opt/conda/install/etc/profile.d/conda.sh
 conda activate /home/vonrudorff/opt/conda/rdkit
 connection=$(cat /home/vonrudorff/.redis-credentials)
