@@ -13,6 +13,7 @@ from qml import fchl
 from rdkit import Chem
 from rdkit.Chem import AllChem, ChemicalForceFields
 
+import adm_merge as merge
 
 def load_sdf(filename):
     """
@@ -586,7 +587,8 @@ def get_torsions(mol):
 def conformers(mol, torsions, resolutions, unique_method=unique_energy, debug=False):
 
     # time
-    here = time.time()
+    if debug:
+        here = time.time()
 
     # Find all
     energies, positions, states = get_conformation(mol, resolutions, torsions)
@@ -607,12 +609,12 @@ def conformers(mol, torsions, resolutions, unique_method=unique_energy, debug=Fa
     # Find uniques
     u_len, u_idx = unique_method([], [], positions, energies, debug=debug)
 
-    timestamp = N/ (time.time() - here)
-    # timestamp = (time.time() - here)
+    # timestamp = N/ (time.time() - here)
+    if debug:
+        timestamp = (time.time() - here)
+        print("debug: {:}, converged={:}, speed={:5.1f}, new={:}".format("", N, timestamp, np.round(energies, 1)))
 
-    # print("debug: {:}, converged={:}, speed={:5.1f}, new={:}".format("", N, timestamp, np.round(energies, 2)[u_idx]))
-
-    return energies[u_idx], positions[u_idx], u_idx
+    return energies, positions
 
 
 def run_jobs(moldb, tordb, jobs):
@@ -622,7 +624,19 @@ def run_jobs(moldb, tordb, jobs):
 
     data = []
 
+
+    # assume same molecule for all jobs!
+    molidx = jobs[0].split(",")[0]
+    molidx = int(molidx)
+    mol = moldb[molidx]
+
+    atoms = [atom for atom in mol.GetAtoms()]
+    atoms_str = [atom.GetSymbol() for atom in atoms]
+    atoms_int = [atom.GetAtomicNum() for atom in atoms]
+
     for job in jobs:
+
+        here = time.time()
 
         job = job.split(",")
 
@@ -640,20 +654,33 @@ def run_jobs(moldb, tordb, jobs):
         torsions = torsions[torsions_idx]
 
         # minimize
-        energies, positions, u_idx = conformers(moldb[mol_idx], torsions, resolutions)
+        energies, positions = conformers(moldb[mol_idx], torsions, resolutions)
 
         origin = [mol_idx, torsions_idx, resolutions]
 
-        # TODO Choice with guido
-        for energy, coord, ui in zip(energies, positions, u_idx):
+        jobdata = []
 
-            result = json.dumps([origin, int(ui), energy, np.round(coord, 5).flatten().tolist()])
-            result = result.replace(" ", "")
+        for energy, coord in zip(energies, positions):
+            # job syntax
+            result = [*origin, 0, energy, np.round(coord, 5).flatten().tolist()]
+            jobdata.append(result)
 
-            data.append(result)
+        # merge job-wiese
+        jobdata = merge.energyandfchl(jobdata, atoms_int)
+        data += jobdata
 
-        print("calculated", job, len(energies))
+        print("calculated", job, len(data), "time={:5.2f}".format(time.time()-here))
 
+    # Merge same conformers, by energy
+    # merge wp-wise
+    # data = merge.energyandfchl(data, atoms_int, debug=True)
+
+    print("and a total of {:} unique results".format(len(data)))
+
+    for i, result in enumerate(data):
+        result = json.dumps(result)
+        result = result.replace(" ", "")
+        data[i] = result
 
     data = "\n".join(data)
     data = gzip.compress(data.encode())
