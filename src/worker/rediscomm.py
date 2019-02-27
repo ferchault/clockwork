@@ -84,15 +84,18 @@ class Taskqueue(object):
 		while True:
 			if deadline > 0 and deadline - time.time() < 120:
 				break
-			task_str = self._start_task()
-			if task_str is None:
+			gztaskstring = self._start_task()
+			if gztaskstring is None:
 				break
-			result_str, log_str = callback(task_str)
-			self._store_result(task_str, result_str, log_str)
+			taskstring = gzip.decompress(gztaskstring).decode('utf8')
+			result_str, log_str = callback(taskstring)
+			gzresultstring = gzip.compress(result_str.encode())
+			self._store_result(gztaskstring, gzresultstring, log_str)
 
 	def insert(self, taskstring):
 		""" Enqueues a task. """
-		self._con.lpush(self._prefix + '_Queue', taskstring)
+		gztaskstring = gzip.compress(taskstring.encode())
+		self._con.lpush(self._prefix + '_Queue', gztaskstring)
 
 	def get_results(self, purge_after=False):
 		""" Fetches and optionally deletes the results."""

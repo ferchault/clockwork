@@ -680,7 +680,6 @@ def run_jobs(moldb, tordb, jobs):
         data[i] = result
 
     data = "\n".join(data)
-    data = gzip.compress(data.encode())
 
     return data, None
 
