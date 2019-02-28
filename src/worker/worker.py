@@ -13,7 +13,8 @@ from qml import fchl
 from rdkit import Chem
 from rdkit.Chem import AllChem, ChemicalForceFields
 
-import adm_merge as merge
+import adm_merge
+import adm_molecule
 
 def load_sdf(filename):
     """
@@ -617,7 +618,7 @@ def conformers(mol, torsions, resolutions, unique_method=unique_energy, debug=Fa
     return energies, positions
 
 
-def run_jobs(moldb, tordb, jobs, debug=False):
+def run_jobs(moldb, tordb, jobs, debug=False, dump_sdf=None):
     """
     calculate conformers
 
@@ -643,6 +644,8 @@ def run_jobs(moldb, tordb, jobs, debug=False):
     atoms_str = [atom.GetSymbol() for atom in atoms]
     atoms_int = [atom.GetAtomicNum() for atom in atoms]
 
+    results = []
+
     for job in jobs:
 
         job = job.split(",")
@@ -655,28 +658,75 @@ def run_jobs(moldb, tordb, jobs, debug=False):
 
         torsions = tordb[idx_mol][idx_torsions]
 
-        conformers = run_job(mol, torsions, resolution)
+        origin = [molidx, idx_torsions]
 
-        # merge
-        quit()
+        jobresults = run_job(mol, torsions, resolution, atoms_int, origin, debug=True)
+
+        results += jobresults
+
+    # wp level merge
+    if len(results) == 0:
+        print(results, job)
+
+    results = adm_merge.energyandfchl(results, atoms_int, debug=True)
+
+    #
+    if dump_sdf is not None:
+        print("saving results to", dump_sdf)
+        adm_molecule.save_results(mol, results, dump_sdf)
+
+    # encode and send back
+    for i, result in enumerate(results):
+        result = json.dumps(result)
+        result = result.replace(" ", "")
+        results[i] = result
+
+    results = "\n".join(results)
+
+    return results, None
 
 
+def run_job(mol, torsions, resolution, atoms, origin, debug=False):
 
-    return results
 
-
-def run_job(mol, torsions, resolution):
-
-    # create iterator
     N_torsions = len(torsions)
 
-    
+    # generator all combinations for this level of torsions
 
-    print("iterator")
+    rest = range(0, resolution)
+    rest = list(rest) + [resolution]
 
+    combinations = itertools.product(rest, repeat=N_torsions)
+    combinations = list(combinations)
+    combinations = [list(x) for x in combinations if resolution in x]
 
-    return conformers
+    rtnresults = []
 
+    for resolutions in combinations:
+
+        energies, positions = conformers(mol, torsions, resolutions)
+
+        results = []
+
+        for energy, coord in zip(energies, positions):
+            result = [*origin, resolutions, 0, energy, np.round(coord, 5).flatten().tolist()]
+            results.append(result)
+
+        # merge job
+        if len(results) == 0:
+            continue
+
+        results = adm_merge.energyandfchl(results, atoms)
+
+        if debug:
+            print("job", resolutions, len(energies), "->", len(results), np.round(energies, decimals=1).tolist())
+
+        rtnresults += results
+
+    # merge job job
+    rtnresults = adm_merge.energyandfchl(rtnresults, atoms, debug=debug)
+
+    return rtnresults
 
 
 def run_jobs_nein(moldb, tordb, jobs, debug=False):
@@ -755,10 +805,10 @@ def run_jobs_nein(moldb, tordb, jobs, debug=False):
 
 def wraprunjobs(moldb, tordb, jobs, debug=False):
 
-    try:
-        rtn = run_jobs(moldb, tordb, jobs, debug=debug)
-    except:
-        rtn = ([], "arrgh it crashed")
+    # try:
+    rtn = run_jobs(moldb, tordb, jobs, debug=debug)
+    # except:
+    #     rtn = ([], "arrgh it crashed")
 
     return rtn
 
@@ -919,6 +969,7 @@ def main():
 
     if args.torsions_file is None:
 
+        # make db on worker
         for mol in moldb:
 
             torsions = get_torsions(mol)
@@ -927,8 +978,7 @@ def main():
 
     else:
 
-        # TODO Read file and make db
-
+        # Read file and make db
         with open(args.torsions_file) as f:
 
             for line in f:
@@ -945,7 +995,10 @@ def main():
         import rediscomm as rediswrap
 
         # make queue
-        tasks = rediswrap.Taskqueue(args.connect_redis, 'test_alc')
+        tasks = rediswrap.Taskqueue(args.connect_redis, 'test_1')
+
+        if args.debug:
+            print("connected to redis")
 
         do_work = lambda x: wraprunjobs(moldb, tordb, x, debug=args.debug)
         tasks.main_loop(do_work)
@@ -956,11 +1009,19 @@ def main():
         # Read archive workers from stdin
 
         workpackage = "2405,8 6 4,3"
+        workpackage += ";" + "2405,8 6 4,1"
+        workpackage += ";" + "2405,8 6 4,2"
+        workpackage += ";" + "2405,8 6 5,3"
+        workpackage += ";" + "2405,8 6 3,3"
+        workpackage += ";" + "2405,8 6 2,3"
 
-        run_jobs(moldb, tordb, workpackage)
+        workpackage = "2405,8 6 4,2"
+
+        workpackage = "0,39 40,0;0,39 40,1;0,39 40,2"
+
+        run_jobs(moldb, tordb, workpackage, dump_sdf="test.sdf", debug=True)
 
         quit()
-
 
     return
 

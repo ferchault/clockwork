@@ -87,8 +87,11 @@ def energyandfchl(jobs, atoms, decimals=1, threshold=0.98, reset_count=False, de
         jobidx, = np.where(energies == energy)
 
         if len(jobidx) == 1:
+
             keep.append(jobidx[0])
-            keep.append(jobidx[0])
+            keep_origin.append(jobidx[0])
+            keep_merge.append(0)
+
             continue
 
         costs = costlist[jobidx]
@@ -103,7 +106,6 @@ def energyandfchl(jobs, atoms, decimals=1, threshold=0.98, reset_count=False, de
 
         if debug:
             print("merge: qml for {:} @ {:}".format(len(jobidx), energy))
-
 
         # Energy are the same, compare with FCHL
         representations = adm_fchl.get_representations_fchl(atoms, positions)
