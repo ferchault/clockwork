@@ -113,10 +113,12 @@ class Taskqueue(object):
 			projects += [_.decode('utf8')[:-(len(kind)+1)] for _ in keys]
 		return list(set(projects))
 
-	def get_orphaned(self):
+	def get_orphaned(self, projectname=None):
 		""" Returns a list of orphaned task ids. """
 		now = time.time()
 		orphaned = []
+		if projectname is None:
+			projectname = self._prefix
 		for taskid, starttime in self._con.hscan_iter('%s_Started' % self._prefix):
 			if now - float(starttime) > 20*60:
 				orphaned.append(taskid)
