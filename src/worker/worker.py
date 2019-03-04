@@ -7,7 +7,6 @@ import time
 
 # import matplotlib.pyplot as plt
 import numpy as np
-# import rmsd
 from qml import fchl
 
 from rdkit import Chem
@@ -671,9 +670,9 @@ def run_jobs(moldb, tordb, jobs, debug=False, dump_sdf=None):
     results = adm_merge.energyandfchl(results, atoms_int, debug=True)
 
     #
-    if dump_sdf is not None:
-        print("saving results to", dump_sdf)
-        adm_molecule.save_results(mol, results, dump_sdf)
+    # if dump_sdf is not None:
+    #     print("saving results to", dump_sdf)
+    #     adm_molecule.save_results(mol, results, dump_sdf)
 
     # encode and send back
     for i, result in enumerate(results):
@@ -941,7 +940,8 @@ def main():
 
     # How to calculate the jobs, local or server?
     parser.add_argument('--read-job', action="store_true", help='')
-    parser.add_argument('--connect-redis', help="connection to redis server")
+    parser.add_argument('--redis-connect', help="connection to redis server")
+    parser.add_argument('--redis-task', help="redis task name")
 
     args = parser.parse_args()
 

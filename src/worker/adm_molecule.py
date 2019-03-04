@@ -3,7 +3,10 @@ import numpy as np
 from rdkit import Chem
 from rdkit.Chem import AllChem, ChemicalForceFields
 
-import rmsd
+try:
+    import rmsd
+except:
+    pass
 
 def load_sdf(filename):
     """
