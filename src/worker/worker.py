@@ -659,7 +659,7 @@ def run_jobs(moldb, tordb, jobs, debug=False, dump_sdf=None):
 
         origin = [molidx, idx_torsions]
 
-        jobresults = run_job(mol, torsions, resolution, atoms_int, origin, debug=True)
+        jobresults = run_job(mol, torsions, resolution, atoms_int, origin, debug=debug)
 
         results += jobresults
 
@@ -667,7 +667,7 @@ def run_jobs(moldb, tordb, jobs, debug=False, dump_sdf=None):
     if len(results) == 0:
         print(results, job)
 
-    results = adm_merge.energyandfchl(results, atoms_int, debug=True)
+    results = adm_merge.energyandfchl(results, atoms_int, debug=debug)
 
     #
     # if dump_sdf is not None:
@@ -701,6 +701,8 @@ def run_job(mol, torsions, resolution, atoms, origin, debug=False):
 
     rtnresults = []
 
+    stamp1 = time.time()
+
     for resolutions in combinations:
 
         energies, positions = conformers(mol, torsions, resolutions)
@@ -721,6 +723,11 @@ def run_job(mol, torsions, resolution, atoms, origin, debug=False):
             print("job", resolutions, len(energies), "->", len(results), np.round(energies, decimals=1).tolist())
 
         rtnresults += results
+
+    stamp2 = time.time()
+
+    if debug:
+        print("timestamp {:4.2f}".format(stamp2-stamp1), len(rtnresults))
 
     # merge job job
     rtnresults = adm_merge.energyandfchl(rtnresults, atoms, debug=debug)
@@ -945,7 +952,6 @@ def main():
 
     args = parser.parse_args()
 
-
     # Read the file
     # archive or sdf
     ext = args.filename.split(".")[-1]
@@ -1019,7 +1025,7 @@ def main():
 
         workpackage = "0,39 40,0;0,39 40,1;0,39 40,2"
 
-        run_jobs(moldb, tordb, workpackage, dump_sdf="test.sdf", debug=True)
+        run_jobs(moldb, tordb, workpackage, dump_sdf="test.sdf", debug=debug)
 
         quit()
 
