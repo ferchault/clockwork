@@ -644,6 +644,7 @@ def run_jobs(moldb, tordb, jobs, debug=False, dump_sdf=None):
     atoms_int = [atom.GetAtomicNum() for atom in atoms]
 
     results = []
+    energies = []
 
     for job in jobs:
 
@@ -663,11 +664,23 @@ def run_jobs(moldb, tordb, jobs, debug=False, dump_sdf=None):
 
         results += jobresults
 
+        job_energies = []
+
+        for result in jobresults:
+            job_energies.append(result[4])
+
+        job_energies = np.round(job_energies, 1)
+
+        # continuesly merge
+        results = adm_merge.energyandfchl(results, atoms_int, debug=debug, only_energies=job_energies)
+
+
     # wp level merge
     if len(results) == 0:
         print(results, job)
 
-    results = adm_merge.energyandfchl(results, atoms_int, debug=debug)
+    # TODO
+    # results = adm_merge.energyandfchl(results, atoms_int, debug=debug)
 
     #
     # if dump_sdf is not None:
@@ -811,10 +824,16 @@ def run_jobs_nein(moldb, tordb, jobs, debug=False):
 
 def wraprunjobs(moldb, tordb, jobs, debug=False):
 
+    stamp1 = time.time()
+
     # try:
     rtn = run_jobs(moldb, tordb, jobs, debug=debug)
     # except:
     #     rtn = ([], "arrgh it crashed")
+
+    stamp2 = time.time()
+
+    print("workpackage done {:5.3f}".format(stamp2-stamp1))
 
     return rtn
 
@@ -1025,7 +1044,7 @@ def main():
 
         workpackage = "0,39 40,0;0,39 40,1;0,39 40,2"
 
-        run_jobs(moldb, tordb, workpackage, dump_sdf="test.sdf", debug=debug)
+        run_jobs(moldb, tordb, workpackage, dump_sdf="test.sdf", debug=args.debug)
 
         quit()
 

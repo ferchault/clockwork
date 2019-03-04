@@ -40,7 +40,7 @@ def info(jobstr):
 
 
 
-def energyandfchl(jobs, atoms, decimals=1, threshold=0.98, reset_count=False, debug=False):
+def energyandfchl(jobs, atoms, decimals=1, threshold=0.98, reset_count=False, only_energies=None, debug=False):
     """
 
     - sort energy
@@ -73,7 +73,11 @@ def energyandfchl(jobs, atoms, decimals=1, threshold=0.98, reset_count=False, de
 
     costlist = np.array(costlist)
     energies = np.round(energies, decimals=decimals)
-    unique_energies = np.unique(energies)
+
+    if only_energies is None:
+        unique_energies = np.unique(energies)
+    else:
+        unique_energies = only_energies
 
     if debug:
         print("merge: found {:} energies".format(len(unique_energies)))
