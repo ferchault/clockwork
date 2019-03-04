@@ -2,3 +2,4 @@ worker
 callgrind
 *.o
 *.log
+*.cprof

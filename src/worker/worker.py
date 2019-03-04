@@ -989,13 +989,13 @@ def main():
 
 
     # Get some conformations
-    if args.connect_redis is not None:
+    if args.redis_connect is not None:
 
         import os
         import rediscomm as rediswrap
 
         # make queue
-        tasks = rediswrap.Taskqueue(args.connect_redis, 'test_1')
+        tasks = rediswrap.Taskqueue(args.redis_connect, args.redis_task)
 
         if args.debug:
             print("connected to redis")
