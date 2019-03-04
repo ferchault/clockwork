@@ -160,6 +160,18 @@ class Taskqueue(object):
 		statsentries = sum([self._con.llen(_) for _ in self._con.keys('%s_Stats:*' % projectname)])
 		print ('    Packages / h:', statsentries)
 
+		# get workpackage durations
+		durations = []
+		for statskey in self._con.keys('%s_Stats:*' % projectname):
+			durations += map(float, self._con.lrange(statskey, 0, -1))
+		if len(durations) > 0:
+			import numpy as np
+			durations = np.array(durations)
+			print ('    Min:         ', np.min(durations))
+			print ('    Mean:        ', np.average(durations))
+			print ('    Max:         ', np.max(durations))
+			print ('    Last:        ', list(map(int, durations[::-1][:10])))
+
 	def has_work(self):
 		return self._con.llen('%s_Queue' % self._prefix) > 0
 
