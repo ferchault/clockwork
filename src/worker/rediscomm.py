@@ -157,23 +157,26 @@ class Taskqueue(object):
 		orphaned = len(self.get_orphaned(projectname))
 		orphanattn = '!' if orphaned > 0 else ' '
 		print ('%s Orphaned:      ' % orphanattn, orphaned)
-		print ('  Running:       ', self._con.llen('%s_Running' % projectname) - orphaned)
+		running = self._con.llen('%s_Running' % projectname) - orphaned
+		print ('  Running:       ', running)
 
 		# get rate info
-		statsentries = sum([self._con.llen(_) for _ in self._con.keys('%s_Stats:*' % projectname)])
-		print ('    Packages / h:', statsentries)
+		statskeys = sorted(self._con.keys('%s_Stats:*' % projectname))
+		if running > 0:
+			statsentries = sum([self._con.llen(_) for _ in statskeys])
+			print ('    Packages / h:', int(statsentries / len(statskeys) * 60))
 
 		# get workpackage durations
 		durations = []
-		for statskey in self._con.keys('%s_Stats:*' % projectname):
+		for statskey in statskeys:
 			durations += map(float, self._con.lrange(statskey, 0, -1))
 		if len(durations) > 0:
 			import numpy as np
 			durations = np.array(durations)
-			print ('    Min:         ', np.min(durations))
-			print ('    Mean:        ', np.average(durations))
-			print ('    Max:         ', np.max(durations))
-			print ('    Last:        ', list(map(int, durations[::-1][:10])))
+			print ('    Min:         ', int(np.min(durations)))
+			print ('    Mean:        ', int(np.average(durations)))
+			print ('    Max:         ', int(np.max(durations)))
+			print ('    Last:        ', list(map(int, durations[-10:][::-1])))
 
 	def has_work(self):
 		return self._con.llen('%s_Queue' % self._prefix) > 0
