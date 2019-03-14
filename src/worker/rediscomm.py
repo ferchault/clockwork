@@ -92,9 +92,12 @@ class Taskqueue(object):
 			gzresultstring = gzip.compress(result_str.encode())
 			self._store_result(gztaskstring, gzresultstring, log_str)
 
-	def insert(self, taskstring):
+	def insert(self, taskstring, iscompressed=False):
 		""" Enqueues a task. """
-		gztaskstring = gzip.compress(taskstring.encode())
+		if not iscompressed:
+			gztaskstring = gzip.compress(taskstring.encode())
+		else:
+			gztaskstring = taskstring
 		self._con.lpush(self._prefix + '_Queue', gztaskstring)
 
 	def get_results(self, purge_after=False):
@@ -142,7 +145,7 @@ class Taskqueue(object):
 
 		# insert
 		for workpackage in tobeinserted:
-			self.insert(workpackage)
+			self.insert(workpackage, iscompressed=True)
 
 	def print_stats(self, projectname):
 		print ('Summary for project %s' % projectname)
