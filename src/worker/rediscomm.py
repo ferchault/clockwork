@@ -122,7 +122,7 @@ class Taskqueue(object):
 		orphaned = []
 		if projectname is None:
 			projectname = self._prefix
-		for taskid, starttime in self._con.hscan_iter('%s_Started' % self._prefix):
+		for taskid, starttime in self._con.hscan_iter('%s_Started' % projectname):
 			if now - float(starttime) > 20*60:
 				orphaned.append(taskid)
 		return orphaned
