@@ -162,7 +162,7 @@ class Taskqueue(object):
 
 		# get rate info
 		statskeys = sorted(self._con.keys('%s_Stats:*' % projectname))
-		if running > 0:
+		if running > 0 and len(statskeys) > 0:
 			statsentries = sum([self._con.llen(_) for _ in statskeys])
 			print ('    Packages / h:', int(statsentries / len(statskeys) * 60))
 
