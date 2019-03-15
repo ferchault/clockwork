@@ -18,7 +18,7 @@ source activate /scicore/home/lilienfeld/rudorff/opt/conda/rdkit
 connection=$(cat /scicore/home/lilienfeld/rudorff/.redis-credentials)
 export PYTHONPATH=/scicore/home/lilienfeld/rudorff/.local/lib/python3.7/site-packages:$PYTHONPATH
 
-python3 src/worker/worker.py \
+python3 /scicore/home/lilienfeld/rudorff/workcopies/clockwork/src/worker/worker.py \
         -f /scicore/home/lilienfeld/bexusi36/qm9-C7O2H10/full.sdf.gz \
         --torsions-file /scicore/home/lilienfeld/bexusi36/qm9-C7O2H10/list_torsions_idx \
         --redis-connect "$connection" --redis-task PROJECTPROJECTPROJECT
