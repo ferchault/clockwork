@@ -21,5 +21,5 @@ export PYTHONPATH=/scicore/home/lilienfeld/rudorff/.local/lib/python3.7/site-pac
 python3 src/worker/worker.py \
         -f /scicore/home/lilienfeld/bexusi36/qm9-C7O2H10/full.sdf.gz \
         --torsions-file /scicore/home/lilienfeld/bexusi36/qm9-C7O2H10/list_torsions_idx \
-        --connect-redis "$connection"
+        --redis-connect "$connection" --redis-task PROJECTPROJECTPROJECT
 
