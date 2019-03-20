@@ -16,11 +16,11 @@ def main():
         import os
         import rediscomm as rediswrap
 
+        print("submitting jobs")
         # make queue
         tasks = rediswrap.Taskqueue(args.redis_connect, args.redis_task)
 
         # Submit job list
-        print("submitting jobs")
 
         f = open(args.workpackages)
 

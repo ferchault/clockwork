@@ -1,5 +1,17 @@
 
+import numpy as np
 from qml import fchl
+
+def get_similarity(atoms, positions):
+
+    # Energy are the same, compare with FCHL
+    representations = get_representations_fchl(atoms, positions)
+    representations = np.array(representations)
+
+    similarity = get_kernel_fchl(representations, representations)
+
+    return similarity
+
 
 def get_representations_fchl(atoms, coordinates_list):
 

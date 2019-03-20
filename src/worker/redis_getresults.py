@@ -7,12 +7,13 @@ def main():
 
     parser = argparse.ArgumentParser()
 
-    parser.add_argument('--connect-redis', help="connection to redis server")
+    parser.add_argument('--redis-connect', help="connection to redis server")
+    parser.add_argument('--redis-task', help="name of queue")
     parser.add_argument('-f', '--filename', help="")
 
     args = parser.parse_args()
 
-    tasks = rediswrap.Taskqueue(args.connect_redis, 'DEBUG')
+    tasks = rediswrap.Taskqueue(args.redis_connect, args.redis_task)
 
     # get_results
 
