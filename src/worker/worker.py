@@ -829,8 +829,6 @@ def wraprunjobs(moldb, tordb, jobs, debug=False):
 
     stamp2 = time.time()
 
-    f.close()
-
     print("workpackage done {:5.3f}".format(stamp2-stamp1))
 
     return rtn
