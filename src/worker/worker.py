@@ -818,12 +818,6 @@ def run_jobs_nein(moldb, tordb, jobs, debug=False):
 
 def wraprunjobs(moldb, tordb, jobs, debug=False):
 
-
-    f = open("jobs_log", "a+")
-
-    f.write("\n")
-    f.write(jobs)
-
     stamp1 = time.time()
 
     try:
@@ -831,7 +825,7 @@ def wraprunjobs(moldb, tordb, jobs, debug=False):
     except:
         error = traceback.format_exc()
         print(error)
-        rtn = ("", error)
+        rtn = ("error "+jobs, error)
 
     stamp2 = time.time()
 
