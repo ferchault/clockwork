@@ -4,8 +4,6 @@ merge jobs
 
 """
 
-import rmsd
-
 import pickle
 import gzip
 
