@@ -1,14 +1,17 @@
-import multiprocessing
-import itertools
-import numpy as np
-import sys
-import os
-import time
+#
 
-from chemhelp import cheminfo
+import itertools
+import multiprocessing
+import os
+import sys
+import time
+from functools import partial
+
+import numpy as np
+
 import clockwork
 import merge
-
+from chemhelp import cheminfo
 from rdkit import Chem
 from rdkit.Chem import AllChem, ChemicalForceFields
 
@@ -385,7 +388,8 @@ def run_jobfile(molobjs, tordbs, filename, threads=1):
 
 def run_joblines_threads(molobjs, tordbs, lines, threads=1):
 
-    from functools import partial
+    # TODO Use tqdm
+
 
     pool = multiprocessing.Pool(threads)
     pool.map(partial(run_jobline, molobjs, tordbs), lines)
