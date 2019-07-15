@@ -1,18 +1,496 @@
+import multiprocessing
+import itertools
+import numpy as np
+import sys
+import os
+import time
+
+from chemhelp import cheminfo
+import clockwork
+import merge
+
+from rdkit import Chem
+from rdkit.Chem import AllChem, ChemicalForceFields
+
+
+def get_forcefield(molobj):
+
+    ffprop = ChemicalForceFields.MMFFGetMoleculeProperties(molobj)
+    forcefield = ChemicalForceFields.MMFFGetMoleculeForceField(molobj, ffprop) # 0.01 overhead
+
+    return ffprop, forcefield
+
+
+def run_forcefield(ff, steps, energy=1e-2, force=1e-3):
+
+    status = ff.Minimize(maxIts=steps, energyTol=energy, forceTol=force)
+
+    return status
+
+
+def run_forcefield_prime(ff, steps, energy=1e-2, force=1e-3):
+
+    status = ff.Minimize(maxIts=steps, energyTol=energy, forceTol=force)
+
+    return status
+
+
+def generate_jobs(molobj, tordb=None, min_cost=0, max_cost=10, prefix="1"):
+
+    # TODO Group by cost?
+
+    if tordb is None:
+        tordb = cheminfo.get_torsions(molobj)
+
+    total_torsions = len(tordb)
+
+    cost_input, cost_cost = clockwork.generate_costlist(total_torsions=total_torsions)
+
+    for (n_tor, resolution), cost in zip(cost_input[min_cost:max_cost], cost_cost[min_cost:max_cost]):
+
+        combinations = clockwork.generate_torsion_combinations(total_torsions, n_tor)
+
+        for combination in combinations:
+
+            # torsions = [tordb[x] for x in combination]
+
+            jobstr = prefix + ","
+            torstr = " ".join([str(x) for x in combination])
+            resstr = str(resolution)
+            jobstr += torstr + "," + resstr
+            print(jobstr)
+
+    quit()
+    return
+
+
+def converge_clockwork(molobj, tordb, max_cost=2):
+    """
+    molobj
+    torsions_idx
+    resolution
+
+    """
+
+    atoms, xyz = cheminfo.molobj_to_xyz(molobj)
+
+    total_torsions = len(tordb)
+    print("total torsions", total_torsions)
+
+    # TODO Cache this
+    cost_input, cost_cost = clockwork.generate_costlist(total_torsions=total_torsions)
+
+    # TODO cost_cost and costfunc
+
+    offset = 6
+    max_cost = 1
+    offset = 1
+    max_cost = 7
+    # offset = 7
+    # max_cost = 1
+
+    for (n_tor, resolution), cost in zip(cost_input[offset:offset+max_cost], cost_cost[offset:offset+max_cost]):
+
+        start = time.time()
+        print("conv", n_tor, resolution, cost)
+
+        # Iterate over torsion combinations
+        combinations = clockwork.generate_torsion_combinations(total_torsions, n_tor)
+
+        cost_result_energies = []
+        cost_result_coordinates = []
+
+        C = 0
+
+        for combination in combinations:
+
+            # TODO Move this to function
+
+            com_start = time.time()
+
+            torsions = [tordb[i] for i in combination]
+
+            result_energies, result_coordinates = get_clockwork_conformations(molobj, torsions, resolution)
+            n_results = len(result_energies)
+            result_cost = [cost]*n_results
+
+            com_end = time.time()
+
+            print("new confs", len(result_energies), "{:6.2f}".format(com_end-com_start))
+
+            # Merge
+            if len(cost_result_energies) == 0:
+
+                cost_result_energies += list(result_energies)
+                cost_result_coordinates += list(result_coordinates)
+                continue
+
+            else:
+
+                start_merge = time.time()
+
+                # TODO Move this to function
+
+                continue
+
+                idxs = merge.merge_asymmetric(atoms,
+                    result_energies,
+                    cost_result_energies,
+                    result_coordinates,
+                    cost_result_coordinates, decimals=2, debug=True)
+
+                for i, idx in enumerate(idxs):
+
+                    C += 1
+
+                    if len(idx) == 0:
+                        cost_result_energies.append(result_energies[i])
+                        cost_result_coordinates.append(result_coordinates[i])
+
+                end_merge = time.time()
+
+            print("total confs", len(cost_result_energies), "{:10.2f}".format(end_merge-start_merge))
+            continue
+
+        end = time.time()
+
+        print("conv", n_tor, resolution, cost, len(cost_result_energies), "tot: {:5.2f}".format(end-start), "per sec: {:5.2f}".format(cost/(end-start)))
+
+    quit()
+
+    return
+
+
+
+def get_clockwork_conformations(molobj, torsions, resolution, atoms=None, debug=False):
+    """
+
+    Get all conformation for specific cost
+    cost defined from torsions and resolution
+
+    """
+
+    n_torsions = len(torsions)
+
+    if atoms is None:
+        atoms, xyz = cheminfo.molobj_to_xyz(molobj, atom_type="int")
+        del xyz
+
+
+    combinations = clockwork.generate_clockwork_combinations(resolution, n_torsions)
+
+    # Collect energies and coordinates
+    end_energies = []
+    end_coordinates = []
+
+    for resolutions in combinations:
+
+        # Get all conformations
+        energies, coordinates, states = get_conformations(molobj, torsions, resolutions)
+
+        # Clean all new conformers for energies and similarity
+        idxs = clean_conformers(atoms, energies, coordinates, states=states)
+        energies = energies[idxs]
+        coordinates = coordinates[idxs]
+
+
+        # Asymmetrically add new conformers
+        idxs = merge.merge_asymmetric(atoms,
+            energies,
+            end_energies,
+            coordinates,
+            end_coordinates)
+
+        for i, idx in enumerate(idxs):
+
+            # if conformation already exists, continue
+            if len(idx) > 0: continue
+
+            # Add new unique conformation to collection
+            end_energies.append(energies[i])
+            end_coordinates.append(coordinates[i])
+
+
+        # Clean rtn energies continously
+        # end_energies += list(energies)
+        # end_coordinates += list(coordinates)
+        # idxs = clean_conformers(atoms, end_energies, end_coordinates)
+        # end_energies = end_energies[idxs]
+        # end_coordinates = end_coordinates[idxs]
+
+    return end_energies, end_coordinates
+
+
+def clean_conformers(atoms, energies, coordinates, states=None):
+
+    # Total count
+    N = len(energies)
+
+    if states is not None:
+
+        # Keep only converged states
+        success = np.argwhere(states == 0)
+        success = success.flatten()
+
+        # Only looked at converged states, discard rest
+        energies = energies[success]
+        coordinates = coordinates[success]
+
+    # Keep index for only unique
+    idxs = merge.merge(atoms, energies, coordinates)
+
+    # Here all cost is the same, so just take the first conformer
+    idxs = [idx[0] for idx in idxs]
+
+    return idxs
+
+
+def get_conformations(molobj, torsions, resolutions):
+
+    n_torsions = len(torsions)
+
+    # init energy
+    energies = []
+    states = []
+    coordinates = []
+
+    # no constraints
+    ffprop, forcefield = get_forcefield(molobj)
+
+    # Forcefield generation failed
+    if forcefield is None:
+        return [], [], []
+
+    # Get conformer and origin
+    conformer = molobj.GetConformer()
+    origin = conformer.GetPositions()
+
+    # Origin angle
+    origin_angles = []
+
+    # HACK rdkit requires int type for index
+    torsions = [[int(y) for y in x] for x in torsions]
+
+    for idxs in torsions:
+        angle = Chem.rdMolTransforms.GetDihedralDeg(conformer, *idxs)
+        origin_angles.append(angle)
+
+    # Get resolution angles
+    angle_iterator = clockwork.generate_angles(resolutions, n_torsions)
+
+    for angle in angle_iterator:
+
+        # reset coordinates
+        set_coordinates(conformer, origin)
+
+        # Minimze with torsion angle constraint
+        energy, pos, status = calculate_forcefield(molobj, conformer, torsions, origin_angles, angle,
+                ffprop=ffprop,
+                ff=forcefield)
+
+        # collect
+        energies += [energy]
+        coordinates += [pos]
+        states += [status]
+
+    return np.asarray(energies), np.asarray(coordinates), np.asarray(states)
+
+
+def calculate_forcefield(molobj, conformer, torsions, origin_angles, delta_angles,
+    ffprop=None,
+    ff=None):
+
+    if ffprop is None or ff is None:
+        ff, ffprop = get_forcefield(molobj)
+
+    # Setup constrained forcefield
+    ffc = ChemicalForceFields.MMFFGetMoleculeForceField(molobj, ffprop)
+
+    # Set angles and constrains for all torsions
+    for i, angle in enumerate(delta_angles):
+
+        set_angle = origin_angles[i] + angle
+
+        # Set clockwork angle
+        try: Chem.rdMolTransforms.SetDihedralDeg(conformer, *torsions[i], set_angle)
+        except: pass
+
+        # Set forcefield constrain
+        ffc.MMFFAddTorsionConstraint(*torsions[i], False,
+            set_angle, set_angle, 1.0e10)
+
+    # minimize constrains
+    status = run_forcefield(ffc, 500)
+
+    # minimize global
+    status = run_forcefield_prime(ff, 700, force=1e-4)
+
+    # Get current energy
+    energy = ff.CalcEnergy()
+
+    # Get current positions
+    pos = conformer.GetPositions()
+
+    return energy, pos, status
+
+
+def set_coordinates(conformer, coordinates):
+
+    for i, pos in enumerate(coordinates):
+        conformer.SetAtomPosition(i, pos)
+
+    return
+
+
+def run_job(molobj, tordb, jobstr):
+    sep = ","
+    jobstr = jobstr.split(sep)
+    molid, torsions_idx, resolution = jobstr
+
+    molid = int(molid)
+    resolution = int(resolution)
+
+    torsions_idx = torsions_idx.split()
+    torsions_idx = [int(idx) for idx in torsions_idx]
+
+    torsions = [tordb[idx] for idx in torsions_idx]
+
+    job_energies, job_coordinates = get_clockwork_conformations(molobj, torsions, resolution)
+
+    return job_energies, job_coordinates
+
+###
+
+def run_jobfile(molobjs, tordbs, filename, threads=1):
+
+    # 1,1 22,3 - 41 confs
+
+    with open(filename, 'r') as f:
+        lines = f.readlines()
+        lines = [line.strip() for line in lines]
+
+    if threads > 1:
+
+        run_joblines_threads(molobjs, tordbs, lines, threads=threads)
+        pass
+        # multi process
+
+    else:
+
+        run_joblines(molobjs, tordbs, lines)
+
+
+    return True
+
+
+def run_joblines_threads(molobjs, tordbs, lines, threads=1):
+
+    from functools import partial
+
+    pool = multiprocessing.Pool(threads)
+    pool.map(partial(run_jobline, molobjs, tordbs), lines)
+
+    print("hello")
+
+    return True
+
+
+def run_jobline(molobjs, tordbs, line, prefix=None, debug=True):
+
+    molobj = molobjs
+    tordb = tordbs
+
+    line = line.strip()
+
+    if prefix is None:
+        prefix = line.replace(" ", "_").replace(",", ".")
+
+    job_start = time.time()
+
+    job_energies, job_coordinates = run_job(molobj, tordb, line)
+
+    job_end = time.time()
+
+    print(line, "-", len(job_energies), "{:5.2f}".format(job_end-job_start))
+
+    fsdf = open("_tmp_data/{:}.sdf".format(prefix), 'w')
+    for energy, coordinates in zip(job_energies, job_coordinates):
+        sdfstr = cheminfo.save_molobj(molobj, coordinates)
+        fsdf.write(sdfstr)
+
+    return job_energies, job_coordinates
+
+
+def run_joblines(molobjs, tordbs, lines):
+
+    for i, line in enumerate(lines):
+
+        run_jobline(molobjs, tordbs, line, prefix=i)
+
+
+    return True
+
+
+#####
+
+def readstdin_sdf():
+
+    while sys.stdin in select.select([sys.stdin], [], [], 0)[0]:
+
+        line = sys.stdin.readline()
+
+        if not line:
+            yield from []
+            break
+
+        line = line.strip()
+        yield line
+
+
+def correct_userpath(filepath):
+    return os.path.expanduser(filepath)
+
 
 
 
 def main():
-    import sys
+
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('-v', '--version', action='version', version="1.0")
-    parser.add_argument('--format', action='store', help='', metavar='FMT')
+    parser.add_argument('--sdf', type=str, help='SDF file', metavar='file', default="~/db/qm9s.sdf.gz")
+    parser.add_argument('--jobfile', type=str, help='txt of jobs', metavar='file')
+
+    parser.add_argument('-j', '--threads', type=int, default=1)
 
     args = parser.parse_args()
 
-    parser.add_argument('--sdf', type=str, help='SDF file', metavar='file', default="~/db/qm9s.sdf.gz")
+    if "~" in args.sdf:
+        args.sdf = correct_userpath(args.sdf)
+
+    print(args.sdf)
+
+    suppl = cheminfo.read_sdffile(args.sdf)
+    molecules = [molobj for molobj in suppl]
+    n_molcules = len(molecules)
+    molobj = molecules[0]
+    torsions = cheminfo.get_torsions(molobj)
+
+    # torsion_idx = 0
+    # torsion = torsions[torsion_idx:2]
+    # resolution = 4
+    # conformers = get_clockwork_conformations(molobj, torsion, resolution)
+
+    # converge_clockwork(molobj, torsions)
+
+    # generate_jobs(molobj)
+
+    if args.jobfile:
+        run_jobfile(molobj, torsions, args.jobfile, threads=args.threads)
+
 
     return
+
 
 if __name__ == '__main__':
     main()
