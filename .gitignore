@@ -1,3 +1,7 @@
 *.pyc
 test.xyz
 *.o
+*.cprof
+*.txt
+.pycache/
+*_tmp_*
