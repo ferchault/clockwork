@@ -35,7 +35,7 @@ def run_forcefield_prime(ff, steps, energy=1e-2, force=1e-3):
     return status
 
 
-def generate_jobs(molobj, tordb=None, min_cost=0, max_cost=10, prefix="1"):
+def generate_jobs(molobj, tordb=None, min_cost=0, max_cost=15, prefix="1"):
 
     # TODO Group by cost?
 
@@ -92,7 +92,6 @@ def converge_clockwork(molobj, tordb, max_cost=2):
     for (n_tor, resolution), cost in zip(cost_input[offset:offset+max_cost], cost_cost[offset:offset+max_cost]):
 
         start = time.time()
-        print("conv", n_tor, resolution, cost)
 
         # Iterate over torsion combinations
         combinations = clockwork.generate_torsion_combinations(total_torsions, n_tor)
@@ -116,7 +115,7 @@ def converge_clockwork(molobj, tordb, max_cost=2):
 
             com_end = time.time()
 
-            print("new confs", len(result_energies), "{:6.2f}".format(com_end-com_start))
+            # print("new confs", len(result_energies), "{:6.2f}".format(com_end-com_start))
 
             # Merge
             if len(cost_result_energies) == 0:
@@ -210,13 +209,6 @@ def get_clockwork_conformations(molobj, torsions, resolution, atoms=None, debug=
             end_energies.append(energies[i])
             end_coordinates.append(coordinates[i])
 
-
-        # Clean rtn energies continously
-        # end_energies += list(energies)
-        # end_coordinates += list(coordinates)
-        # idxs = clean_conformers(atoms, end_energies, end_coordinates)
-        # end_energies = end_energies[idxs]
-        # end_coordinates = end_coordinates[idxs]
 
     return end_energies, end_coordinates
 
@@ -390,8 +382,6 @@ def run_joblines_threads(molobjs, tordbs, lines, threads=1):
     pool = multiprocessing.Pool(threads)
     pool.map(partial(run_jobline, molobjs, tordbs), lines)
 
-    print("hello")
-
     return True
 
 
@@ -424,9 +414,7 @@ def run_jobline(molobjs, tordbs, line, prefix=None, debug=True):
 def run_joblines(molobjs, tordbs, lines):
 
     for i, line in enumerate(lines):
-
         run_jobline(molobjs, tordbs, line, prefix=i)
-
 
     return True
 
@@ -483,11 +471,10 @@ def main():
 
     # converge_clockwork(molobj, torsions)
 
-    # generate_jobs(molobj)
-
     if args.jobfile:
         run_jobfile(molobj, torsions, args.jobfile, threads=args.threads)
-
+    else:
+        generate_jobs(molobj)
 
     return
 
