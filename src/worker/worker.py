@@ -1,4 +1,5 @@
 #
+from tqdm import tqdm
 
 import itertools
 import multiprocessing
@@ -15,6 +16,7 @@ from chemhelp import cheminfo
 from rdkit import Chem
 from rdkit.Chem import AllChem, ChemicalForceFields
 
+import similarity_fchl19 as sim
 
 def get_forcefield(molobj):
 
@@ -165,7 +167,10 @@ def converge_clockwork(molobj, tordb, max_cost=2):
 
 
 
-def get_clockwork_conformations(molobj, torsions, resolution, atoms=None, debug=False):
+def get_clockwork_conformations(molobj, torsions, resolution,
+    atoms=None,
+    debug=False,
+    timings=False):
     """
 
     Get all conformation for specific cost
@@ -185,43 +190,94 @@ def get_clockwork_conformations(molobj, torsions, resolution, atoms=None, debug=
     # Collect energies and coordinates
     end_energies = []
     end_coordinates = []
+    end_representations = []
+
+    first = True
 
     for resolutions in combinations:
 
+        time_start = time.time()
+
         # Get all conformations
-        energies, coordinates, states = get_conformations(molobj, torsions, resolutions)
+        c_energies, c_coordinates, c_states = get_conformations(molobj, torsions, resolutions)
+
+        N = len(c_energies)
+
+        # Filter unconverged
+        success = np.argwhere(c_states == 0)
+        success = success.flatten()
+        c_energies = c_energies[success]
+        c_coordinates = c_coordinates[success]
+
+        # Calculate representations
+        c_representations = [sim.get_representation(atoms, coordinates) for coordinates in c_coordinates]
+        c_representations = np.asarray(c_representations)
 
         # Clean all new conformers for energies and similarity
-        idxs = clean_conformers(atoms, energies, coordinates, states=states)
-        energies = energies[idxs]
-        coordinates = coordinates[idxs]
+        idxs = clean_representations(atoms, c_energies, c_representations)
 
+        c_energies = c_energies[idxs]
+        c_coordinates = c_coordinates[idxs]
+        c_representations = c_representations[idxs]
+
+        if first:
+            first = False
+            end_energies += list(c_energies)
+            end_coordinates += list(c_coordinates)
+            end_representations += list(c_representations)
+            continue
 
         # Asymmetrically add new conformers
         idxs = merge.merge_asymmetric(atoms,
-            energies,
+            c_energies,
             end_energies,
-            coordinates,
-            end_coordinates)
+            c_representations,
+            end_representations)
 
+        # Add new unique conformation to return collection
         for i, idx in enumerate(idxs):
 
             # if conformation already exists, continue
             if len(idx) > 0: continue
 
             # Add new unique conformation to collection
-            end_energies.append(energies[i])
-            end_coordinates.append(coordinates[i])
+            end_energies.append(c_energies[i])
+            end_coordinates.append(c_coordinates[i])
+            end_representations.append(c_representations[i])
 
 
-        # Clean rtn energies continously
-        # end_energies += list(energies)
-        # end_coordinates += list(coordinates)
-        # idxs = clean_conformers(atoms, end_energies, end_coordinates)
-        # end_energies = end_energies[idxs]
-        # end_coordinates = end_coordinates[idxs]
+        time_end = time.time()
+
+        if timings:
+            timing = time_end - time_start
+            print("res time {:8.2f} cnf/sec - {:8.2f} tot sec".format(N/timing, timing))
+
+        continue
 
     return end_energies, end_coordinates
+
+
+def clean_representations(atoms, energies, representations):
+    """
+    """
+    N = len(energies)
+
+    # Keep index for only unique
+    # idxs = merge.merge_asymmetric(atoms,
+    #     energies,
+    #     energies,
+    #     representations,
+    #     representations)
+
+    idxs = merge.merge(atoms,
+        energies,
+        representations)
+
+    # Here all cost is the same, so just take the first conformer
+    # idxs = [idx[0] for idx in idxs]
+    # idxs = np.unique(idxs)
+
+    return idxs
 
 
 def clean_conformers(atoms, energies, coordinates, states=None):
@@ -238,6 +294,11 @@ def clean_conformers(atoms, energies, coordinates, states=None):
         # Only looked at converged states, discard rest
         energies = energies[success]
         coordinates = coordinates[success]
+
+    # TODO what about failed states?
+    # TODO Check high energies
+
+    # TODO change to asymetric merge (cleaner code)
 
     # Keep index for only unique
     idxs = merge.merge(atoms, energies, coordinates)
@@ -299,12 +360,63 @@ def get_conformations(molobj, torsions, resolutions):
     return np.asarray(energies), np.asarray(coordinates), np.asarray(states)
 
 
+def get_energy(molobj):
+
+    ffprop, ff = get_forcefield(molobj)
+
+    # Get current energy
+    energy = ff.CalcEnergy()
+
+    return energy
+
+
+def get_energies(molobj, coordinates,
+    ffprop=None,
+    ff=None):
+
+    if ffprop is None or ff is None:
+        ffprop, ff = get_forcefield(molobj)
+
+    # Get conformer and origin
+    conformer = molobj.GetConformer()
+
+    for coordinate in coordinates:
+        set_coordinates(conformer, coordinate)
+
+    # Get current energy
+    energy = ff.CalcEnergy()
+
+    return
+
+
+def get_sdfcontent(sdffile, rtn_atoms=False):
+
+    coordinates = []
+    energies = []
+
+    reader = cheminfo.read_sdffile(sdffile)
+    molobjs = [molobj for molobj in reader]
+    atoms = ""
+
+    for molobj in molobjs:
+        atoms, coordinate = cheminfo.molobj_to_xyz(molobj)
+        energy = get_energy(molobj)
+
+        coordinates.append(coordinate)
+        energies.append(energy)
+
+    if rtn_atoms:
+        return molobjs[0], atoms, energies, coordinates
+
+    return energies, coordinates
+
+
 def calculate_forcefield(molobj, conformer, torsions, origin_angles, delta_angles,
     ffprop=None,
     ff=None):
 
     if ffprop is None or ff is None:
-        ff, ffprop = get_forcefield(molobj)
+        ffprop, ff = get_forcefield(molobj)
 
     # Setup constrained forcefield
     ffc = ChemicalForceFields.MMFFGetMoleculeForceField(molobj, ffprop)
@@ -373,33 +485,30 @@ def run_jobfile(molobjs, tordbs, filename, threads=1):
         lines = [line.strip() for line in lines]
 
     if threads > 1:
-
         run_joblines_threads(molobjs, tordbs, lines, threads=threads)
-        pass
-        # multi process
 
     else:
-
         run_joblines(molobjs, tordbs, lines)
-
 
     return True
 
 
 def run_joblines_threads(molobjs, tordbs, lines, threads=1):
 
-    # TODO Use tqdm
-
+    # TODO tdqm on pool.map?
+    # https://github.com/tqdm/tqdm/issues/484
 
     pool = multiprocessing.Pool(threads)
     pool.map(partial(run_jobline, molobjs, tordbs), lines)
 
-    print("hello")
-
     return True
 
 
-def run_jobline(molobjs, tordbs, line, prefix=None, debug=True):
+def run_jobline(molobjs, tordbs, line,
+    prefix=None,
+    debug=False):
+
+    # TODO redis options
 
     molobj = molobjs
     tordb = tordbs
@@ -407,7 +516,9 @@ def run_jobline(molobjs, tordbs, line, prefix=None, debug=True):
     line = line.strip()
 
     if prefix is None:
-        prefix = line.replace(" ", "_").replace(",", ".")
+        prefix = line \
+            .replace(" ", "_") \
+            .replace(",", ".")
 
     job_start = time.time()
 
@@ -415,7 +526,8 @@ def run_jobline(molobjs, tordbs, line, prefix=None, debug=True):
 
     job_end = time.time()
 
-    print(line, "-", len(job_energies), "{:5.2f}".format(job_end-job_start))
+    if debug:
+        print(line, "-", len(job_energies), "{:5.2f}".format(job_end-job_start))
 
     fsdf = open("_tmp_data/{:}.sdf".format(prefix), 'w')
     for energy, coordinates in zip(job_energies, job_coordinates):
@@ -427,7 +539,7 @@ def run_jobline(molobjs, tordbs, line, prefix=None, debug=True):
 
 def run_joblines(molobjs, tordbs, lines):
 
-    for i, line in enumerate(lines):
+    for i, line in enumerate(tqdm(lines)):
 
         run_jobline(molobjs, tordbs, line, prefix=i)
 
@@ -492,6 +604,40 @@ def main():
     if args.jobfile:
         run_jobfile(molobj, torsions, args.jobfile, threads=args.threads)
 
+
+    return
+
+
+def get_energy_test():
+
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-v', '--version', action='version', version="1.0")
+    parser.add_argument('--sdf', type=str, help='SDF file', metavar='file', default="~/db/qm9s.sdf.gz")
+    parser.add_argument('--jobfile', type=str, help='txt of jobs', metavar='file')
+
+    parser.add_argument('-j', '--threads', type=int, default=1)
+
+    args = parser.parse_args()
+
+    if "~" in args.sdf:
+        args.sdf = correct_userpath(args.sdf)
+
+
+    sdf = open(args.sdf, 'r').read()
+
+    # Testing weird convergence
+    molobj, status = cheminfo.sdfstr_to_molobj(sdf)
+    energy = get_energy(molobj)
+    print(energy)
+    conformer = molobj.GetConformer()
+    ffprop, ff = get_forcefield(molobj)
+    status = run_forcefield_prime(ff, 700, force=1e-4)
+    energy = get_energy(molobj)
+    print(energy)
+
+    sdfstr = cheminfo.molobj_to_sdfstr(molobj)
+    print(sdfstr)
 
     return
 
