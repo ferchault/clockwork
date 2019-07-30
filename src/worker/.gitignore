@@ -1,3 +1,4 @@
+env
 worker
 callgrind
 *.o
