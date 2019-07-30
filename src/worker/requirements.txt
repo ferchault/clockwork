@@ -1,0 +1,8 @@
+numpy
+scipy
+ase
+rmsd
+joblib
+tqdm
+matplotlib
+git+git://github.com/andersx/qml@gradient_kernel --install-option="--compiler=intelem --fcompiler=intelem"
