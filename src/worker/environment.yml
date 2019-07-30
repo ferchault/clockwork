@@ -1,0 +1,5 @@
+name: confworker
+dependencies:
+  - python=3.6.5
+  - rdkit::rdkit
+  - pip
