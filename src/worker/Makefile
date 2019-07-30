@@ -1,4 +1,7 @@
 
+
+# git+git://github.com/andersx/qml@gradient_kernel --install-option="--compiler=intelem --fcompiler=intelem"
+
 ENV=env
 CONDA=conda
 PYTHON=${ENV}/bin/python
@@ -12,7 +15,7 @@ conda_setup:
 	${CONDA} env create -f environment.yml -p ${ENV}
 
 ${QMLDIR}:
-	git clone --depth 1 --single-branch --branch gradient_kernel git@github.com:andersx/qml ${QMLDIR}
+	git clone --depth 1 --single-branch --branch gradient_kernel https://github.com/andersx/qml ${QMLDIR}
 
 build_qml: ${QMLDIR}
 	cd ${QMLDIR}; ../${PYTHON} setup.py build --compiler=intelem --fcompiler=intelem
