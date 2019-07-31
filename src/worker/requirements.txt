@@ -1,4 +1,5 @@
 numpy
+redis
 scipy
 sklearn
 ase
