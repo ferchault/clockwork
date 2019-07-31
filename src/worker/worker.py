@@ -492,13 +492,22 @@ def run_jobfile(molobjs, tordbs, filename, threads=1):
     return True
 
 
-def run_joblines_threads(molobjs, tordbs, lines, threads=1):
+def run_joblines_threads(molobjs, tordbs, lines, threads=1, show_bar=True):
 
     # TODO tdqm on pool.map?
     # https://github.com/tqdm/tqdm/issues/484
 
     pool = multiprocessing.Pool(threads)
-    pool.map(partial(run_jobline, molobjs, tordbs), lines)
+
+    pbar = tqdm(total=len(lines))
+
+    # pool.map(partial(run_jobline, molobjs, tordbs), lines)
+
+    for i, _ in enumerate(pool.imap_unordered(partial(run_jobline, molobjs, tordbs), lines)):
+        pbar.update()
+
+    pbar.close()
+
 
     return True
 
