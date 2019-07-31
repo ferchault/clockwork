@@ -117,6 +117,7 @@ def merge(atoms, energies, representations,
         u_representations = representations[u_idxs]
 
         if len(u_idxs) == 1:
+            keepidx += list(u_idxs)
             continue
 
         if debug:
