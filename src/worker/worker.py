@@ -209,6 +209,8 @@ def get_clockwork_conformations(molobj, torsions, resolution,
         c_energies = c_energies[success]
         c_coordinates = c_coordinates[success]
 
+        N2 = len(c_energies)
+
         # Calculate representations
         c_representations = [sim.get_representation(atoms, coordinates) for coordinates in c_coordinates]
         c_representations = np.asarray(c_representations)
