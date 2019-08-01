@@ -1,4 +1,4 @@
-
+import time
 from tqdm import tqdm
 
 import copy
@@ -423,6 +423,8 @@ def main():
     # keys = ["4_1"]
     # keys = ["2_4"]
 
+    tstart = time.time()
+
     for x in keys:
         print()
         print(x, len(costsdf[x]))
@@ -440,6 +442,9 @@ def main():
         f.write(sdfs)
         f.close()
 
+    tend = time.time()
+
+    print("total {:5.2f} sec".format(tend-tstart))
 
     return
 
