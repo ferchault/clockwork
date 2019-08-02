@@ -1,4 +1,6 @@
 #
+
+import copy
 from tqdm import tqdm
 
 import itertools
@@ -27,20 +29,28 @@ def get_forcefield(molobj):
 
 
 def run_forcefield(ff, steps, energy=1e-2, force=1e-3):
+    """
+    """
 
-    status = ff.Minimize(maxIts=steps, energyTol=energy, forceTol=force)
+    try:
+        status = ff.Minimize(maxIts=steps, energyTol=energy, forceTol=force)
+    except RuntimeError:
+        return 1
 
     return status
 
 
 def run_forcefield_prime(ff, steps, energy=1e-2, force=1e-3):
 
-    status = ff.Minimize(maxIts=steps, energyTol=energy, forceTol=force)
+    try:
+        status = ff.Minimize(maxIts=steps, energyTol=energy, forceTol=force)
+    except RuntimeError:
+        return 1
 
     return status
 
 
-def generate_jobs(molobj, tordb=None, min_cost=0, max_cost=10, prefix="1"):
+def generate_jobs(molobj, tordb=None, min_cost=0, max_cost=15, prefix="1"):
 
     # TODO Group by cost?
 
@@ -97,7 +107,6 @@ def converge_clockwork(molobj, tordb, max_cost=2):
     for (n_tor, resolution), cost in zip(cost_input[offset:offset+max_cost], cost_cost[offset:offset+max_cost]):
 
         start = time.time()
-        print("conv", n_tor, resolution, cost)
 
         # Iterate over torsion combinations
         combinations = clockwork.generate_torsion_combinations(total_torsions, n_tor)
@@ -121,7 +130,7 @@ def converge_clockwork(molobj, tordb, max_cost=2):
 
             com_end = time.time()
 
-            print("new confs", len(result_energies), "{:6.2f}".format(com_end-com_start))
+            # print("new confs", len(result_energies), "{:6.2f}".format(com_end-com_start))
 
             # Merge
             if len(cost_result_energies) == 0:
@@ -313,6 +322,8 @@ def clean_conformers(atoms, energies, coordinates, states=None):
 
 def get_conformations(molobj, torsions, resolutions):
 
+    molobj = copy.deepcopy(molobj)
+
     n_torsions = len(torsions)
 
     # init energy
@@ -478,42 +489,61 @@ def run_job(molobj, tordb, jobstr):
 
 ###
 
-def run_jobfile(molobjs, tordbs, filename, threads=1):
+def run_jobfile(molobjs, tordbs, filename, threads=0):
 
-    # 1,1 22,3 - 41 confs
+    # Prepare molobjs to xyz
+
+    origins = []
+    for molobj in [molobjs]:
+        atoms, xyz = cheminfo.molobj_to_xyz(molobj)
+        origins.append(xyz)
 
     with open(filename, 'r') as f:
         lines = f.readlines()
         lines = [line.strip() for line in lines]
 
-    if threads > 1:
-        run_joblines_threads(molobjs, tordbs, lines, threads=threads)
+    if threads > 0:
+        run_joblines_threads(origins, molobjs, tordbs, lines, threads=threads)
 
     else:
-        run_joblines(molobjs, tordbs, lines)
+        run_joblines(origins, molobjs, tordbs, lines)
 
     return True
 
 
-def run_joblines_threads(molobjs, tordbs, lines, threads=1):
+def run_joblines_threads(origins, molobjs, tordbs, lines, threads=1, show_bar=True):
 
     # TODO tdqm on pool.map?
     # https://github.com/tqdm/tqdm/issues/484
 
     pool = multiprocessing.Pool(threads)
-    pool.map(partial(run_jobline, molobjs, tordbs), lines)
+
+    if not show_bar:
+        pool.map(partial(run_jobline, origins, molobjs, tordbs), lines)
+
+    else:
+        pbar = tqdm(total=len(lines))
+        for i, _ in enumerate(pool.imap_unordered(partial(run_jobline, origins, molobjs, tordbs), lines)):
+            pbar.update()
+        pbar.close()
 
     return True
 
 
-def run_jobline(molobjs, tordbs, line,
+def run_jobline(origins, molobjs, tordbs, line,
     prefix=None,
     debug=False):
 
-    # TODO redis options
+    # TODO redis options, don't dump results to hdd
+
+    # TODO multiple molobjs
 
     molobj = molobjs
     tordb = tordbs
+
+    # deep copy
+    molobj = copy.deepcopy(molobj)
+    cheminfo.molobj_set_coordinates(molobj, origins[0])
 
     line = line.strip()
 
@@ -522,6 +552,11 @@ def run_jobline(molobjs, tordbs, line,
             .replace(" ", "_") \
             .replace(",", ".")
 
+    filename = "_tmp_data/{:}.sdf".format(prefix)
+
+    if os.path.exists(filename):
+        return [],[]
+
     job_start = time.time()
 
     job_energies, job_coordinates = run_job(molobj, tordb, line)
@@ -529,9 +564,9 @@ def run_jobline(molobjs, tordbs, line,
     job_end = time.time()
 
     if debug:
-        print(line, "-", len(job_energies), "{:5.2f}".format(job_end-job_start))
+        print(line, "-", len(job_energies), "{:5.2f}".format(job_end-job_start), filename)
 
-    fsdf = open("_tmp_data/{:}.sdf".format(prefix), 'w')
+    fsdf = open(filename, 'w')
     for energy, coordinates in zip(job_energies, job_coordinates):
         sdfstr = cheminfo.save_molobj(molobj, coordinates)
         fsdf.write(sdfstr)
@@ -539,12 +574,11 @@ def run_jobline(molobjs, tordbs, line,
     return job_energies, job_coordinates
 
 
-def run_joblines(molobjs, tordbs, lines):
+def run_joblines(origins, molobjs, tordbs, lines):
 
     for i, line in enumerate(tqdm(lines)):
 
         run_jobline(molobjs, tordbs, line, prefix=i)
-
 
     return True
 
@@ -601,11 +635,10 @@ def main():
 
     # converge_clockwork(molobj, torsions)
 
-    # generate_jobs(molobj)
-
     if args.jobfile:
         run_jobfile(molobj, torsions, args.jobfile, threads=args.threads)
-
+    else:
+        generate_jobs(molobj)
 
     return
 

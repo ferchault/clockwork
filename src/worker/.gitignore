@@ -5,3 +5,5 @@ callgrind
 *.log
 *.cprof
 chemhelp
+qml
+qmldevelop
