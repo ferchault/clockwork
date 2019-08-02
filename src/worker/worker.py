@@ -1,8 +1,6 @@
 #
 
 import copy
-from tqdm import tqdm
-
 import itertools
 import multiprocessing
 import os
@@ -11,14 +9,15 @@ import time
 from functools import partial
 
 import numpy as np
+from tqdm import tqdm
 
 import clockwork
 import merge
+import similarity_fchl19 as sim
 from chemhelp import cheminfo
 from rdkit import Chem
 from rdkit.Chem import AllChem, ChemicalForceFields
 
-import similarity_fchl19 as sim
 
 def get_forcefield(molobj):
 
@@ -578,7 +577,7 @@ def run_joblines(origins, molobjs, tordbs, lines):
 
     for i, line in enumerate(tqdm(lines)):
 
-        run_jobline(molobjs, tordbs, line, prefix=i)
+        run_jobline(origins, molobjs, tordbs, line, prefix=i)
 
     return True
 
@@ -613,7 +612,7 @@ def main():
     parser.add_argument('--sdf', type=str, help='SDF file', metavar='file', default="~/db/qm9s.sdf.gz")
     parser.add_argument('--jobfile', type=str, help='txt of jobs', metavar='file')
 
-    parser.add_argument('-j', '--threads', type=int, default=1)
+    parser.add_argument('-j', '--threads', type=int, default=0)
 
     args = parser.parse_args()
 
@@ -651,7 +650,7 @@ def get_energy_test():
     parser.add_argument('--sdf', type=str, help='SDF file', metavar='file', default="~/db/qm9s.sdf.gz")
     parser.add_argument('--jobfile', type=str, help='txt of jobs', metavar='file')
 
-    parser.add_argument('-j', '--threads', type=int, default=1)
+    parser.add_argument('-j', '--threads', type=int, default=0)
 
     args = parser.parse_args()
 
