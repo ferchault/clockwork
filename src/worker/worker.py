@@ -1,8 +1,6 @@
 #
 
 import copy
-from tqdm import tqdm
-
 import itertools
 import multiprocessing
 import os
@@ -11,14 +9,16 @@ import time
 from functools import partial
 
 import numpy as np
+from tqdm import tqdm
 
 import clockwork
 import merge
+import similarity_fchl19 as sim
 from chemhelp import cheminfo
 from rdkit import Chem
 from rdkit.Chem import AllChem, ChemicalForceFields
+from rdkit.Chem import rdmolfiles
 
-import similarity_fchl19 as sim
 
 def get_forcefield(molobj):
 
@@ -217,6 +217,8 @@ def get_clockwork_conformations(molobj, torsions, resolution,
         success = success.flatten()
         c_energies = c_energies[success]
         c_coordinates = c_coordinates[success]
+
+        N2 = len(c_energies)
 
         # Calculate representations
         c_representations = [sim.get_representation(atoms, coordinates) for coordinates in c_coordinates]
@@ -424,13 +426,29 @@ def get_sdfcontent(sdffile, rtn_atoms=False):
 
 def calculate_forcefield(molobj, conformer, torsions, origin_angles, delta_angles,
     ffprop=None,
-    ff=None):
+    ff=None,
+    delta=10**-7):
+    """
+
+    # TODO explain delta
+
+    Note: There is a artificat where if delta < 10**-16 the FF will find a
+    *extremely* local minima with very high energy (un-physical)the FF will
+    find a *extremely* local minima with very high energy (un-physical).
+    Setting delta to 10**-6 (numerical noise) should fix this.
+
+    """
 
     if ffprop is None or ff is None:
         ffprop, ff = get_forcefield(molobj)
 
+    sdfstr = cheminfo.molobj_to_sdfstr(molobj)
+    molobj_prime, status = cheminfo.sdfstr_to_molobj(sdfstr)
+    conformer_prime = molobj_prime.GetConformer()
+
     # Setup constrained forcefield
-    ffc = ChemicalForceFields.MMFFGetMoleculeForceField(molobj, ffprop)
+    # ffprop_prime, ffc = get_forcefield(molobj_prime)
+    ffc = ChemicalForceFields.MMFFGetMoleculeForceField(molobj_prime, ffprop)
 
     # Set angles and constrains for all torsions
     for i, angle in enumerate(delta_angles):
@@ -438,21 +456,67 @@ def calculate_forcefield(molobj, conformer, torsions, origin_angles, delta_angle
         set_angle = origin_angles[i] + angle
 
         # Set clockwork angle
-        try: Chem.rdMolTransforms.SetDihedralDeg(conformer, *torsions[i], set_angle)
+        try: Chem.rdMolTransforms.SetDihedralDeg(conformer_prime, *torsions[i], set_angle)
         except: pass
 
         # Set forcefield constrain
         ffc.MMFFAddTorsionConstraint(*torsions[i], False,
-            set_angle, set_angle, 1.0e10)
+            set_angle-delta, set_angle+delta, 1.0e10)
 
     # minimize constrains
     status = run_forcefield(ffc, 500)
+
+    # Set result
+    coordinates = conformer_prime.GetPositions()
+    cheminfo.conformer_set_coordinates(conformer, coordinates)
 
     # minimize global
     status = run_forcefield_prime(ff, 700, force=1e-4)
 
     # Get current energy
     energy = ff.CalcEnergy()
+
+    if energy > 80:
+
+        print(torsions, origin_angles, delta_angles)
+        print(energy, status)
+
+        print("id")
+        print(id(molobj_prime))
+        print(id(molobj))
+
+        molobj_test, status = cheminfo.sdfstr_to_molobj(sdfstr)
+        coordinates = conformer.GetPositions()
+        cheminfo.molobj_set_coordinates(molobj_test, coordinates)
+        ffprop_t, ff_t = get_forcefield(molobj)
+        run_forcefield(ff_t, 500)
+
+        print(coordinates)
+
+
+        for idxs in torsions:
+            angle = Chem.rdMolTransforms.GetDihedralDeg(conformer, *idxs)
+            print("ANGLE 1", angle)
+
+        f = open("_test_dumpsdf.sdf", 'w')
+        sdf = cheminfo.save_molobj(molobj)
+        f.write(sdf)
+
+        # prop, ff = get_forcefield(molobj)
+        # status = run_forcefield(ff, 500)
+        conformer = molobj_test.GetConformer()
+
+        for idxs in torsions:
+            angle = Chem.rdMolTransforms.GetDihedralDeg(conformer, *idxs)
+            print("ANGLE 2",angle)
+
+        print(energy, status)
+
+        sdf = cheminfo.save_molobj(molobj_test)
+        f.write(sdf)
+
+        f.close()
+        quit()
 
     # Get current positions
     pos = conformer.GetPositions()
@@ -511,8 +575,8 @@ def run_jobfile(molobjs, tordbs, filename, threads=0):
 
 def run_joblines_threads(origins, molobjs, tordbs, lines, threads=1, show_bar=True):
 
-    # TODO tdqm on pool.map?
-    # https://github.com/tqdm/tqdm/issues/484
+    # TODO Collect the conformers and return them
+    # list for each line
 
     pool = multiprocessing.Pool(threads)
 
@@ -552,8 +616,8 @@ def run_jobline(origins, molobjs, tordbs, line,
 
     filename = "_tmp_data/{:}.sdf".format(prefix)
 
-    if os.path.exists(filename):
-        return [],[]
+    # if os.path.exists(filename):
+    #     return [],[]
 
     job_start = time.time()
 
@@ -576,7 +640,7 @@ def run_joblines(origins, molobjs, tordbs, lines):
 
     for i, line in enumerate(tqdm(lines)):
 
-        run_jobline(molobjs, tordbs, line, prefix=i)
+        run_jobline(origins, molobjs, tordbs, line, prefix=i)
 
     return True
 
@@ -611,7 +675,7 @@ def main():
     parser.add_argument('--sdf', type=str, help='SDF file', metavar='file', default="~/db/qm9s.sdf.gz")
     parser.add_argument('--jobfile', type=str, help='txt of jobs', metavar='file')
 
-    parser.add_argument('-j', '--threads', type=int, default=1)
+    parser.add_argument('-j', '--threads', type=int, default=0)
 
     args = parser.parse_args()
 
@@ -649,7 +713,7 @@ def get_energy_test():
     parser.add_argument('--sdf', type=str, help='SDF file', metavar='file', default="~/db/qm9s.sdf.gz")
     parser.add_argument('--jobfile', type=str, help='txt of jobs', metavar='file')
 
-    parser.add_argument('-j', '--threads', type=int, default=1)
+    parser.add_argument('-j', '--threads', type=int, default=0)
 
     args = parser.parse_args()
 
