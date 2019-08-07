@@ -30,6 +30,13 @@ chemhelp:
 	git clone https://github.com/charnley/chemhelp
 
 
+# USAGE
+
+status:
+	${PYTHON} communication/redis_status.py --redis-task hello
+
+
+
 # FCHL18
 
 qml_fchl_path=qmldevelop/qml/fchl
