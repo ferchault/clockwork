@@ -388,7 +388,31 @@ def mergesdfs(sdflist):
 
 
 
+
 def main():
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-v', '--version', action='version', version="1.0")
+    parser.add_argument('--sdf', nargs="+", action='store', help='', metavar='FILE')
+    args = parser.parse_args()
+
+    # TODO Merge results from redis
+
+    if args.sdf is None:
+        print("error: actually we need sdfs to merge")
+        quit()
+
+
+
+    print(args.sdf)
+
+
+
+    return
+
+
+
+def main_test():
     import sys
     import argparse
     parser = argparse.ArgumentParser()
