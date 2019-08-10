@@ -1,5 +1,4 @@
 #
-print("debug! wth")
 
 import json
 import copy
