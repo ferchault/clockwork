@@ -610,7 +610,7 @@ def run_jobfile(molobjs, tordbs, filename, threads=0):
 
     origins = []
 
-    for molobj in [molobjs]:
+    for molobj in molobjs:
         atoms, xyz = cheminfo.molobj_to_xyz(molobj)
         origins.append(xyz)
 
@@ -839,9 +839,8 @@ def main_file(args):
     molobjs = [molobj for molobj in suppl]
 
     if args.jobfile:
-        molobj = molobjs[0]
-        torsions = cheminfo.get_torsions(molobj)
-        run_jobfile(molobj, torsions, args.jobfile, threads=args.threads)
+        tordb = [cheminfo.get_torsions(molobj) for molobj in molobjs]
+        run_jobfile(molobjs, tordb, args.jobfile, threads=args.threads)
 
     else:
         # TODO Base on tordb
