@@ -1,4 +1,5 @@
 #
+print("debug! wth")
 
 import json
 import copy
@@ -794,6 +795,9 @@ def main_redis(args):
         with open(args.redis_connect_file, 'r') as f:
             redis_connection = f.read().strip()
 
+    if args.debug:
+        print("redis: connecting to", redis_connection)
+
     tasks = rediscomm.Taskqueue(redis_connection, redis_task)
 
 
@@ -847,7 +851,7 @@ def redis_worker(origins, moldb, tordb, lines, debug=False):
 
     stamp2 = time.time()
 
-    print("workpackage done {:5.3f}".format(stamp2-stamp1))
+    print("workpackage {:} - {:5.3f}s".format(line, stamp2-stamp1))
 
 
     here=1
