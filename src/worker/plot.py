@@ -18,9 +18,8 @@ def get_energies(sdffile):
 
         # energy = worker.get_energy(molobj)
 
-        prop, ff = worker.get_forcefield(molobj)
-        status = worker.run_forcefield(ff, 500)
-
+        # prop, ff = worker.get_forcefield(molobj)
+        # status = worker.run_forcefield(ff, 500)
 
         energy = worker.get_energy(molobj)
         molobjs.append(molobj)

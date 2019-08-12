@@ -22,6 +22,12 @@ from rdkit.Chem import rdmolfiles
 
 from communication import rediscomm
 
+import joblib
+
+# Set local cache
+cachedir = '.pycache'
+memory = joblib.Memory(cachedir, verbose=0)
+
 
 def correct_userpath(filepath):
     return os.path.expanduser(filepath)
@@ -57,7 +63,7 @@ def run_forcefield_prime(ff, steps, energy=1e-2, force=1e-3):
     return status
 
 
-
+@memory.cache
 def generate_torsion_combinations(total_torsions, n_tor):
 
     combinations = clockwork.generate_torsion_combinations(total_torsions, n_tor)
@@ -67,7 +73,7 @@ def generate_torsion_combinations(total_torsions, n_tor):
 
 
 def generate_torsions(total_torsions,
-    min_cost=0, max_cost=15, prefix="1"):
+    min_cost=0, max_cost=15, prefix="0"):
 
     cost_input, cost_cost = clockwork.generate_costlist(total_torsions=total_torsions)
 
@@ -83,14 +89,32 @@ def generate_torsions(total_torsions,
             jobstr += torstr + "," + resstr
             print(jobstr)
 
+    return
+
+
+def generate_torsions_specific(total_torsions, n_tor, resolution, prefix="0"):
+
+    sep = ","
+
+    combinations = generate_torsion_combinations(total_torsions, n_tor)
+
+    for combination in combinations:
+
+        jobstr = prefix + sep
+        torstr = " ".join([str(x) for x in combination])
+        resstr = str(resolution)
+        jobstr += torstr + sep + resstr
+        print(jobstr)
 
     return
 
 
-def generate_jobs(molobjs, tordb=None,
+def generate_jobs(molobjs, args, tordb=None,
     min_cost=0, max_cost=15):
 
     # TODO Group by cost?
+
+    combos = args.jobcombos
 
     n_molecules = len(molobjs)
 
@@ -98,7 +122,7 @@ def generate_jobs(molobjs, tordb=None,
         tordb = [cheminfo.get_torsions(molobj) for molobj in molobjs]
 
 
-    for i in range(n_molecules):
+    for i in range(n_molecules)[:500]:
 
         molobj = molobjs[i]
         torsions = tordb[i]
@@ -106,8 +130,16 @@ def generate_jobs(molobjs, tordb=None,
         total_torsions = len(torsions)
 
         prefix = str(i)
-        generate_torsions(total_torsions, prefix=prefix, min_cost=min_cost, max_cost=max_cost)
 
+        if combos is None:
+            generate_torsions(total_torsions, prefix=prefix, min_cost=min_cost, max_cost=max_cost)
+
+        else:
+
+            for combo in combos:
+                combo = combo.split(",")
+                combo = [int(x) for x in combo]
+                generate_torsions_specific(total_torsions, combo[0], combo[1], prefix=prefix)
 
 
     # quit()
@@ -619,15 +651,15 @@ def run_jobfile(molobjs, tordbs, filename, threads=0):
         lines = [line.strip() for line in lines]
 
     if threads > 0:
-        run_joblines_threads(origins, molobjs, tordbs, lines, threads=threads)
+        run_joblines_threads(origins, molobjs, tordbs, lines, threads=threads, dump=True)
 
     else:
-        run_joblines(origins, molobjs, tordbs, lines)
+        run_joblines(origins, molobjs, tordbs, lines, dump=True)
 
     return True
 
 
-def run_joblines_threads(origins, molobjs, tordbs, lines, threads=1, show_bar=True):
+def run_joblines_threads(origins, molobjs, tordbs, lines, threads=1, show_bar=True, dump=False):
 
     # TODO Collect the conformers and return them
     # list for each line
@@ -635,25 +667,25 @@ def run_joblines_threads(origins, molobjs, tordbs, lines, threads=1, show_bar=Tr
     pool = multiprocessing.Pool(threads)
 
     if not show_bar:
-        pool.map(partial(run_jobline, origins, molobjs, tordbs), lines)
+        pool.map(partial(run_jobline, origins, molobjs, tordbs, dump=dump), lines)
 
     else:
         pbar = tqdm(total=len(lines))
-        for i, _ in enumerate(pool.imap_unordered(partial(run_jobline, origins, molobjs, tordbs), lines)):
+        for i, _ in enumerate(pool.imap_unordered(partial(run_jobline, origins, molobjs, tordbs, dump=dump), lines)):
             pbar.update()
         pbar.close()
 
     return True
 
 
-def run_joblines(origins, molobjs, tordbs, lines):
+def run_joblines(origins, molobjs, tordbs, lines, dump=False):
 
     lines_energies = []
     lines_coordinates = []
 
     for i, line in enumerate(tqdm(lines)):
 
-        job_energies, job_coordinates = run_jobline(origins, molobjs, tordbs, line, prefix=i)
+        job_energies, job_coordinates = run_jobline(origins, molobjs, tordbs, line, prefix=i, dump=dump)
 
     return True
 
@@ -699,6 +731,7 @@ def run_jobline(origins, molobjs, tordbs, line,
         print(line, "-", len(job_energies), "{:5.2f}".format(job_end-job_start), filename)
 
     if dump:
+        if debug: print("saving {:} confs to".format(len(job_energies)), filename)
         fsdf = open(filename, 'w')
         for energy, coordinates in zip(job_energies, job_coordinates):
             sdfstr = cheminfo.save_molobj(molobj, coordinates)
@@ -725,6 +758,24 @@ def readstdin_sdf():
 
 
 #####
+
+def read_tordb(filename):
+
+    with open(filename) as f:
+        lines = f.readlines()
+
+    tordb = []
+    for line in lines:
+        line = line.split(":")
+        idx = line[0]
+        torsions = line[1]
+        torsions = torsions.split(",")
+        torsions = [np.array(x.split(), dtype=int) for x in torsions]
+        torsions = np.asarray(torsions, dtype=int)
+        tordb.append(torsions)
+
+    return tordb
+
 
 def main_redis(args):
 
@@ -754,14 +805,8 @@ def main_redis(args):
     if args.sdftor is None:
         tordb = [cheminfo.get_torsions(molobj) for molobj in molecules]
     else:
-        with open(args.sdftor) as f:
-            lines = f.readlines()
+        tordb = read_tordb(args.sdftor)
 
-        tordb = []
-        for line in lines:
-            line = eval(line)
-            line = np.asarray(line)
-            tordb.append(line)
 
     # Make origins
     origins = []
@@ -838,13 +883,17 @@ def main_file(args):
     suppl = cheminfo.read_sdffile(args.sdf)
     molobjs = [molobj for molobj in suppl]
 
-    if args.jobfile:
+    if args.sdftor:
+        tordb = read_tordb(args.sdftor)
+    else:
         tordb = [cheminfo.get_torsions(molobj) for molobj in molobjs]
+
+    if args.jobfile:
         run_jobfile(molobjs, tordb, args.jobfile, threads=args.threads)
 
     else:
         # TODO Base on tordb
-        generate_jobs(molobjs)
+        generate_jobs(molobjs, args, tordb=tordb)
 
     return
 
@@ -859,6 +908,8 @@ def main():
 
     parser.add_argument('-j', '--threads', type=int, default=0)
 
+    parser.add_argument('--jobcombos', nargs="+", help="", metavar="str")
+    # OR
     parser.add_argument('--jobfile', type=str, help='txt of jobs', metavar='file')
     # OR
     parser.add_argument('--redis-task', help="redis task name", default=None)

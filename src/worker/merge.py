@@ -10,6 +10,8 @@ from chemhelp import cheminfo
 import rmsd
 import worker
 
+import matplotlib.pyplot as plt
+
 import os
 import joblib
 
@@ -95,6 +97,19 @@ def cumulative_similarity(atoms, representations,
     return np.asarray(s_idxs)
 
 
+def merge_cost(atoms,
+    energies_x,
+    energies_y,
+    representations_x,
+    representations_y,
+    costs_x,
+    costs_y):
+
+    
+
+    return
+
+
 def merge(atoms, energies, representations,
     debug=False,
     decimals=1,
@@ -136,6 +151,8 @@ def merge_asymmetric(atoms, energies_x, energies_y, rep_x, rep_y,
     decimals=1,
     threshold=0.98):
     """
+    merge x into y (keep y)
+
     """
 
     rep_x = np.asarray(rep_x)
@@ -263,14 +280,6 @@ def sortjobs(lines):
     return costview
 
 
-def merge_cumulative(cost_list, coordinates_list):
-    """
-    """
-
-
-    return
-
-
 def merge_sdflist(lines, datadir=""):
 
     # Get first line
@@ -388,8 +397,115 @@ def mergesdfs(sdflist):
 
 
 
+def generate_sdf(filename):
+
+    suppl = cheminfo.read_sdffile(filename)
+
+    # start
+    molobj = next(suppl)
+    atoms, coord = cheminfo.molobj_to_xyz(molobj)
+    energy = worker.get_energy(molobj)
+    representation = sim.get_representation(atoms, coord)
+
+    # init lists
+    molobjs = [molobj]
+    energies = [energy]
+    coordinates = [coord]
+    representations = [representation]
+
+    # collect the rest
+    for molobj in suppl:
+
+        energy = worker.get_energy(molobj)
+        coord = cheminfo.molobj_get_coordinates(molobj)
+        representation = sim.get_representation(atoms, coord)
+
+        molobjs.append(molobj)
+        energies.append(energy)
+        coordinates.append(coord)
+        representations.append(representation)
+
+
+    return molobjs, energies, coordinates, representations
+
+
 
 def main():
+
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-v', '--version', action='version', version="1.0")
+    parser.add_argument('--sdf', nargs="+", action='store', help='', metavar='FILE')
+    parser.add_argument('--sdfstdin', action='store_true', help='Read sdf files from stdin')
+    parser.add_argument('--dump', action='store_true', help='dump sdf str to stdout')
+    parser.add_argument('--debug', action='store_true', help='debug statements')
+    args = parser.parse_args()
+
+    if args.sdf is None:
+        print("error: actually we need sdfs to merge")
+        quit()
+
+    molobjs = []
+    energies = []
+    coordinates = []
+    representations = []
+    atoms = []
+    n_total = 0
+
+    for filename in args.sdf:
+
+        try:
+            molobjs_next, energies_next, coordinates_next, representations_next = generate_sdf(filename)
+        except:
+            continue
+
+        if len(molobjs) == 0:
+            atoms, coord = cheminfo.molobj_to_xyz(molobjs_next[0])
+            energies += energies_next
+            coordinates += coordinates_next
+            representations += representations_next
+            molobjs += molobjs_next
+            n_total += len(molobjs_next)
+            continue
+
+        if args.debug:
+            print(" {:} = {:} confs".format(filename, len(molobjs_next)))
+
+        idxs = merge_asymmetric(
+                atoms,
+                energies_next,
+                energies,
+                representations_next,
+                representations)
+
+        n_new = 0
+        for i, idxl in enumerate(idxs):
+
+            N = len(idxl)
+            if N > 0: continue
+
+            energies.append(energies_next[i])
+            coordinates.append(coordinates_next[i])
+            representations.append(representations_next[i])
+            molobjs.append(molobjs_next[i])
+            n_new += 1
+
+
+        if args.debug:
+            n_total += n_new
+            print(" - new", n_new)
+            print("total", n_total)
+
+
+    if args.dump:
+        sdfstr = [cheminfo.molobj_to_sdfstr(molobj) for molobj in molobjs]
+        sdfstr = "".join(sdfstr)
+        print(sdfstr)
+
+    return
+
+
+def main_folder():
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('-v', '--version', action='version', version="1.0")
@@ -403,9 +519,78 @@ def main():
         quit()
 
 
+    dumpdir = "_tmp_apentane_cum/"
 
-    print(args.sdf)
+    filename = args.sdf[0] + "{:}_{:}" + ".sdf"
 
+    molobjs, energies, coordinates, representations = generate_sdf(filename.format(1,1))
+
+    atoms, xyz = cheminfo.molobj_to_xyz(molobjs[0])
+
+    # costcombos, costs = clockwork.generate_costlist(total_torsions=28)
+    costcombos, costs = clockwork.generate_costlist()
+
+    n_total = len(molobjs)
+    molcosts = [(1,1)]*n_total
+
+    print("start", n_total)
+
+    for combo in costcombos[:15]:
+
+        try:
+            molobjs_new, energies_new, coordinates_new, representations_new = generate_sdf(filename.format(*combo))
+        except:
+            continue
+
+        print(" merge", len(molobjs_new))
+
+        idxs = merge_asymmetric(
+                atoms,
+                energies_new,
+                energies,
+                representations_new,
+                representations)
+
+        n_new = 0
+        for i, idxl in enumerate(idxs):
+
+            N = len(idxl)
+            if N > 0: continue
+
+            energies.append(energies_new[i])
+            coordinates.append(coordinates_new[i])
+            representations.append(representations_new[i])
+            molobjs.append(molobjs_new[i])
+
+            n_new += 1
+
+
+        molcosts += [combo]*n_new
+
+        n_total += n_new
+        print(" - new", n_new)
+        print("total", n_total, combo)
+
+
+
+    sdfstr = [cheminfo.molobj_to_sdfstr(molobj) for molobj in molobjs]
+    sdfstr = "".join(sdfstr)
+    f = open(dumpdir+"all.sdf", 'w')
+    f.write(sdfstr)
+    f.close()
+
+    hellodump = ""
+    for combo in molcosts:
+        hello = "{:} {:}".format(*combo)
+        hellodump += hello+"\n"
+
+    f = open(dumpdir+"costs.csv", 'w')
+    f.write(hellodump)
+    f.close()
+
+    plt.plot(energies, 'k.')
+    plt.yscale("log")
+    plt.savefig(dumpdir+"energies")
 
 
     return

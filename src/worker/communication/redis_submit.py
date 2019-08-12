@@ -49,11 +49,10 @@ def main():
     tasks = rediscomm.Taskqueue(redis_connection, redis_task)
 
     with open(args.jobfile) as f:
-        lines = f.readlines()
 
-    for line in lines:
-        line = line.strip()
-        tasks.insert(line)
+        for line in f:
+            line = line.strip()
+            tasks.insert(line)
 
     print("done")
 
