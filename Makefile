@@ -39,6 +39,9 @@ unconv:
 redis:
 	${PYTHON} src/worker/worker.py --sdf examples/pentane_nosymmetry.sdf --redis-task hello
 
+scicore:
+	${PYTHON} src/worker/worker.py --sdf ~/db/example_pentane_nosym.sdf  --redis-task hello
+
 energies:
 	@# ${PYTHON} src/worker/plot.py --sdf *dump*sdf
 	@# ${PYTHON} src/worker/plot.py --sdf _tmp_apentane_cost/2_5.sdf
