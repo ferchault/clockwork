@@ -104,6 +104,22 @@ class Taskqueue(object):
 			gztaskstring = taskstring
 		self._con.lpush(self._prefix + '_Queue', gztaskstring)
 
+	def insert_batch(self, taskstrings, iscompressed=False):
+		""" Enqueues multiple tasks. """
+		if not iscompressed:
+			gztaskstrings = [gzip.compress(_) for _ in taskstrings]
+		else:
+			gztaskstrings = taskstrings
+		pipe = self._con.pipeline()
+		batch_length = 0
+		for i in range(len(gztaskstrings)):
+			batch_length += 1
+			pipe.lpush(self._prefix + '_Queue', gztaskstrings[i])
+			if batch_length % 500 == 0:
+				pipe.execute()
+				pipe = self._con.pipeline()
+		pipe.execute()
+
 	def get_results(self, purge_after=False):
 		""" Fetches and optionally deletes the results."""
 		results = self._con.lrange(self._prefix + '_Results', 0, -1)
