@@ -5,3 +5,6 @@ test.xyz
 *.txt
 .pycache/
 *_tmp_*
+*.bk
+*.stdout
+*.stderr
