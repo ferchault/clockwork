@@ -51,8 +51,10 @@ def main():
     with open(args.jobfile) as f:
         lines = []
         for line in f:
-            line = line.strip()
-        tasks.insert_batch(lines)
+            x = line.strip()
+            x = gzip.compress(x.encode())
+            lines.append(x)
+        tasks.insert_batch(lines, iscompressed=True)
 
     print("done")
 

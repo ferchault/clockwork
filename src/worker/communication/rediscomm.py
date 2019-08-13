@@ -107,7 +107,7 @@ class Taskqueue(object):
 	def insert_batch(self, taskstrings, iscompressed=False):
 		""" Enqueues multiple tasks. """
 		if not iscompressed:
-			gztaskstrings = [gzip.compress(_) for _ in taskstrings]
+			gztaskstrings = [gzip.compress(_.encode()) for _ in taskstrings]
 		else:
 			gztaskstrings = taskstrings
 		pipe = self._con.pipeline()
