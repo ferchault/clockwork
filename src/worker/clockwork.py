@@ -231,6 +231,29 @@ def generate_costlist(max_torsions=5, max_clockwork=7, total_torsions=20):
     return cost_x, np.asarray(cost_y)
 
 
+def generate_linear_costlist(max_torsions=5):
+    """
+    1 1
+
+    2 1
+    1 2
+
+    3 1
+    2 2
+    1 3
+
+    etc
+
+    """
+
+    combos = []
+
+    for i in range(max_torsions):
+        for j in range(i):
+            combo = [i-j, j+1]
+            combos.append(combo)
+
+    return combos
 
 
 def test():

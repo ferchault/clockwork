@@ -120,12 +120,19 @@ class Taskqueue(object):
 				pipe = self._con.pipeline()
 		pipe.execute()
 
-	def get_results(self, purge_after=False):
+	def get_keys(self, search_filter='*'):
+		key = self._prefix + "_" + search_filter
+		results = self._con.keys(key)
+		results = [key.decode().replace(self._prefix + "_", "") for key in results]
+		return results
+
+	def get_results(self, key='Results', purge_after=False):
 		""" Fetches and optionally deletes the results."""
-		results = self._con.lrange(self._prefix + '_Results', 0, -1)
+		name = self._prefix + '_' + key
+		results = self._con.lrange(name, 0, -1)
 		results = [gzip.decompress(_).decode('utf8') for _ in results]
 		if purge_after:
-			self._con.delete(self._prefix + '_Results')
+			self._con.delete(name)
 		return results
 
 	def discover_projects(self):

@@ -1,5 +1,6 @@
 import time
 from tqdm import tqdm
+import sys
 
 import copy
 import numpy as np
@@ -15,6 +16,8 @@ import matplotlib.pyplot as plt
 import os
 import joblib
 
+import json
+
 import similarity_fchl19 as sim
 
 import qml
@@ -28,6 +31,7 @@ cachedir = '.pycache'
 memory = joblib.Memory(cachedir, verbose=0)
 
 
+DEFAULT_DECIMALS = 5
 
 def get_representations_fchl(atoms, coordinates_list, max_size=30):
 
@@ -65,6 +69,40 @@ def get_kernel_fchl(rep_alpha, rep_beta, debug=False):
                 alchemy="off")
 
     return kernel
+
+
+def cumulative_similarity_lazy(atoms, coordinates,
+    threshold=0.98):
+    """
+    """
+
+    u_representations = [sim.get_representation(atoms, coordinates[0])]
+    s_idxs = [0]
+
+    for i, coord in enumerate(coordinates[1:]):
+
+        i += 1
+
+        representation = sim.get_representation(atoms, coord)
+
+        similar = merge_asymmetric_similarity(atoms,
+            [representation],
+            u_representations,
+            threshold=threshold)
+
+        # We are only looking at one representation
+        similar = similar[0]
+
+        if len(similar) > 0:
+            continue
+
+        u_representations += [representation]
+        s_idxs += [i]
+
+    return np.asarray(s_idxs)
+
+
+    return
 
 
 def cumulative_similarity(atoms, representations,
@@ -108,6 +146,53 @@ def merge_cost(atoms,
     
 
     return
+
+
+def merge_coordinates(atoms, energies, coordinates,
+    debug=False,
+    decimals=1,
+    threshold=0.98):
+    """
+
+    """
+
+    print("here?")
+    print(len(coordinates))
+
+    coordinates = np.asarray(coordinates)
+
+    # find unique energies
+    energies = np.round(energies, decimals=decimals)
+    unique_energies = np.unique(energies)
+
+    # Return index from x, with idx of same similarity if empty, it is new
+    keepidx = []
+
+    for uenergy in unique_energies:
+
+        u_idxs, = np.where(energies == uenergy)
+        u_coordinates = coordinates[u_idxs]
+
+        print(uenergy, len(u_idxs))
+
+        if len(u_idxs) == 1:
+            keepidx += list(u_idxs)
+            continue
+
+        if debug:
+            print(uenergy, len(u_idxs))
+
+        # u_representations = [sim.get_representation(atoms, coord) for coord in u_coordinates]
+        # u_representations = np.asarray(u_representations)
+
+        unique_idxs = cumulative_similarity_lazy(atoms, u_coordinates)
+
+        for simidx in unique_idxs:
+            simidx = u_idxs[simidx]
+            keepidx += [simidx]
+
+    return keepidx
+
 
 
 def merge(atoms, energies, representations,
@@ -429,21 +514,249 @@ def generate_sdf(filename):
     return molobjs, energies, coordinates, representations
 
 
+def read_txt(filename, n_atoms):
 
-def main():
+    energies = []
+    coordinates = []
+    costs = []
 
-    import argparse
-    parser = argparse.ArgumentParser()
-    parser.add_argument('-v', '--version', action='version', version="1.0")
-    parser.add_argument('--sdf', nargs="+", action='store', help='', metavar='FILE')
-    parser.add_argument('--sdfstdin', action='store_true', help='Read sdf files from stdin')
-    parser.add_argument('--dump', action='store_true', help='dump sdf str to stdout')
-    parser.add_argument('--debug', action='store_true', help='debug statements')
-    args = parser.parse_args()
+    lines = open(filename, 'r').readlines()
 
-    if args.sdf is None:
-        print("error: actually we need sdfs to merge")
+    for line in lines:
+
+        line = eval(line)
+
+        energy = line[0]
+        coord = line[1]
+        coord = np.asarray(coord)
+        coord = coord.reshape((n_atoms, 3))
+
+        if len(line) > 2:
+            cost = line[2]
+            costs.append(cost)
+
+        energies.append(energy)
+        coordinates.append(coord)
+
+    if len(costs) > 0:
+        return energies, coordinates, costs
+
+    return energies, coordinates
+
+
+def read_resulttxt(atoms_list, filename, molidx=None):
+    """
+
+    """
+
+    if molidx is None:
+        molidx = filename.split("/")[-1].split("_")[0]
+        molidx = int(molidx)
+
+    atoms = atoms_list[molidx]
+    n_atoms = len(atoms)
+
+    lines = open(filename, 'r').readlines()
+
+    energies = []
+    coordinates = []
+
+    for line in lines:
+
+        line = eval(line)
+
+        energy = line[0]
+        coord = line[1]
+        coord = np.asarray(coord)
+        coord = coord.reshape((n_atoms, 3))
+
+        energies.append(energy)
+        coordinates.append(coord)
+
+    return energies, coordinates, atoms
+
+
+def merge_result(atoms, energies, coordinates):
+
+    # cumulative merging
+    idxs = merge_coordinates(atoms, energies, coordinates)
+
+    uenergies = []
+    ucoordinates = []
+
+    for idx in idxs:
+
+        uenergies.append(energies[idx])
+        ucoordinates.append(coordinates[idx])
+
+    return uenergies, ucoordinates
+
+
+def merge_results(sdffile, filenames):
+
+    # init
+    energies = []
+    coordinates = []
+    representations = []
+    atoms = []
+    n_total = 0
+
+    molobjs = cheminfo.read_sdffile(sdffile[0])
+    molobjs = [molobj for molobj in molobjs]
+    atoms_list = [cheminfo.molobj_to_atoms(molobj) for molobj in molobjs]
+
+    for filename in filenames:
+
+        print("merging", filename)
+
+        energies, coordinates, atoms = read_resulttxt(atoms_list, filename)
+        energies, coordinates = merge_result(atoms, energies, coordinates)
+        results = worker.prepare_redis_dump(energies, coordinates)
+
+        print("found {:} unique conformations".format(len(energies)))
+
+        dumpfile = filename + ".merged"
+        f = open(dumpfile, 'w')
+        f.write(results)
+        f.close()
+
+    return
+
+
+def merge_results_cumulative_prime(sdffile, filenametemplate, debug=True, molid=0):
+
+    # the G list
+    combos = clockwork.generate_linear_costlist()
+
+    # init
+    energies = []
+    coordinates = []
+    representations = []
+    atoms = []
+    costs = []
+    n_total = 0
+
+    molobjs = cheminfo.read_sdffile(sdffile[0])
+    molobjs = [molobj for molobj in molobjs]
+    atoms_list = [cheminfo.molobj_to_atoms(molobj) for molobj in molobjs]
+
+    filenametemplate = filenametemplate[0]
+
+    if molid is None:
+        print("hey, select molid")
         quit()
+
+    molobj = molobjs[molid]
+    atoms = cheminfo.molobj_to_atoms(molobj)
+    n_atoms = len(atoms)
+
+    for combo in combos:
+
+        filename = filenametemplate.format(molid, *combo)
+
+        print(filename, file=sys.stderr)
+
+        energies_next, coordinates_next = read_txt(filename, n_atoms)
+        representations_next = [sim.get_representation(atoms, coord) for coord in coordinates_next]
+
+        if len(energies) == 0:
+            n_new = len(energies_next)
+            energies += energies_next
+            coordinates += coordinates_next
+            representations += representations_next
+            costs += [combo]*n_new
+            n_total += n_new
+            continue
+
+
+        idxs = merge_asymmetric(
+            atoms,
+            energies_next,
+            energies,
+            representations_next,
+            representations)
+
+
+        n_new = 0
+        for i, idxl in enumerate(idxs):
+
+            N = len(idxl)
+            if N > 0: continue
+
+            energies.append(energies_next[i])
+            coordinates.append(coordinates_next[i])
+            representations.append(representations_next[i])
+            costs.append(combo)
+            n_new += 1
+
+
+        if debug:
+            n_total += n_new
+            print(" - new", n_new, file=sys.stderr)
+            print("total", n_total, file=sys.stderr)
+
+    # TODO Dump sdf and costs
+
+    return molobj, energies, coordinates, costs
+
+
+
+def merge_results_cumulative(sdffile, filenames, debug=True, molid=0):
+
+    # init
+    energies = []
+    coordinates = []
+    representations = []
+    atoms = []
+    n_total = 0
+
+    molobjs = cheminfo.read_sdffile(sdffile[0])
+    molobjs = [molobj for molobj in molobjs]
+    atoms_list = [cheminfo.molobj_to_atoms(molobj) for molobj in molobjs]
+
+    for filename in filenames:
+
+        energies_next, coordinates_next, atoms = read_resulttxt(atoms_list, filename)
+        representations_next = [sim.get_representation(atoms, coord) for coord in coordinates_next]
+
+
+        if len(energies) == 0:
+            energies += energies_next
+            coordinates += coordinates_next
+            representations += representations_next
+            n_total += len(energies_next)
+            continue
+
+
+        idxs = merge_asymmetric(
+            atoms,
+            energies_next,
+            energies,
+            representations_next,
+            representations)
+
+
+        n_new = 0
+        for i, idxl in enumerate(idxs):
+
+            N = len(idxl)
+            if N > 0: continue
+
+            energies.append(energies_next[i])
+            coordinates.append(coordinates_next[i])
+            representations.append(representations_next[i])
+            n_new += 1
+
+
+        if debug:
+            n_total += n_new
+            print(" - new", n_new)
+            print("total", n_total)
+
+    return
+
+
+def merge_sdfs(filenames):
 
     molobjs = []
     energies = []
@@ -452,7 +765,7 @@ def main():
     atoms = []
     n_total = 0
 
-    for filename in args.sdf:
+    for filename in filenames:
 
         try:
             molobjs_next, energies_next, coordinates_next, representations_next = generate_sdf(filename)
@@ -501,6 +814,85 @@ def main():
         sdfstr = [cheminfo.molobj_to_sdfstr(molobj) for molobj in molobjs]
         sdfstr = "".join(sdfstr)
         print(sdfstr)
+
+
+    return
+
+
+def dump_txt(energies, coordinates, costs, coord_decimals=DEFAULT_DECIMALS):
+
+    results = []
+
+    for energy, coord, cost in zip(energies, coordinates, costs):
+        coord = np.round(coord, coord_decimals).flatten().tolist()
+        result = [energy, coord, cost]
+        result = json.dumps(result)
+        result = result.replace(" ", "")
+        results.append(result)
+
+    results = "\n".join(results)
+
+    return results
+
+
+def dump_sdf(molobj, energies, coordinates, costs):
+
+
+    hel = molobj.SetProp('_Name', '')
+
+    dumpstr = ""
+
+    for energy, coord, cost in zip(energies, coordinates, costs):
+
+        # Set coordinates
+        cheminfo.molobj_set_coordinates(molobj, coord)
+
+        molobj.SetProp('Energy', str(energy))
+        molobj.SetProp('Cost', str(cost))
+
+        sdfstr = cheminfo.molobj_to_sdfstr(molobj)
+
+        dumpstr += sdfstr
+
+
+    print(dumpstr)
+
+    return
+
+
+def main():
+
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-v', '--version', action='version', version="1.0")
+    parser.add_argument('--txt', nargs="+", help='Read results from txt file (require sdf)', metavar="FILE")
+    parser.add_argument('--sdf', nargs="+", action='store', help='', metavar='FILE')
+    parser.add_argument('--sdfstdin', action='store_true', help='Read sdf files from stdin')
+    parser.add_argument('--format', action='store', help='What output format? (sdf, txt)', metavar='str')
+    parser.add_argument('--molid', action='store', help='What molid from sdf should be used for txt', metavar='int', type=int)
+    parser.add_argument('--dump', action='store_true', help='dump sdf str to stdout')
+    parser.add_argument('--debug', action='store_true', help='debug statements')
+    args = parser.parse_args()
+
+    if args.sdf is None:
+        print("error: actually we need sdfs to merge")
+        quit()
+
+
+    if args.txt is None:
+        merge_sdfs(args.sdf)
+
+    else:
+        # merge_results(args.sdf, args.txt)
+        # merge_results_cumulative(args.sdf, args.txt)
+        molobj, energies, coordinates, costs = merge_results_cumulative_prime(args.sdf, args.txt, molid=args.molid)
+
+        if args.format == "sdf":
+            dump_sdf(molobj, energies, coordinates, costs)
+        else:
+            out = dump_txt(energies, coordinates, costs)
+            print(out)
+
 
     return
 

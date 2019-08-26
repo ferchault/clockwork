@@ -28,6 +28,8 @@ import joblib
 cachedir = '.pycache'
 memory = joblib.Memory(cachedir, verbose=0)
 
+DEFAULT_DECIMALS = 5
+# DEFAULT_DECIMALS = 12
 
 def correct_userpath(filepath):
     return os.path.expanduser(filepath)
@@ -512,15 +514,24 @@ def get_sdfcontent(sdffile, rtn_atoms=False):
 def calculate_forcefield(molobj, conformer, torsions, origin_angles, delta_angles,
     ffprop=None,
     ff=None,
-    delta=10**-7):
+    delta=10**-7,
+    coord_decimals=6):
     """
 
-    # TODO explain delta
+
+    Disclaimer: lots of hacks, sorry. Let me know if you have an alternative.
 
     Note: There is a artificat where if delta < 10**-16 the FF will find a
     *extremely* local minima with very high energy (un-physical)the FF will
     find a *extremely* local minima with very high energy (un-physical).
     Setting delta to 10**-6 (numerical noise) should fix this.
+
+    Note: rdkit forcefield restrained optimization will optimized to a *very*
+    local and very unphysical minima which the global optimizer cannot get out
+    from. Truncating the digits of the coordinates to six is a crude but
+    effective way to slight move the the molecule out of this in a reproducable
+    way.
+
 
     """
 
@@ -553,6 +564,7 @@ def calculate_forcefield(molobj, conformer, torsions, origin_angles, delta_angle
 
     # Set result
     coordinates = conformer_prime.GetPositions()
+    coordinates = np.round(coordinates, coord_decimals) # rdkit hack, read description
     cheminfo.conformer_set_coordinates(conformer, coordinates)
 
     # minimize global
@@ -865,7 +877,7 @@ def redis_worker(origins, moldb, tordb, lines, debug=False):
     return results, status, storestring
 
 
-def prepare_redis_dump(energies, coordinates, coord_decimals=5):
+def prepare_redis_dump(energies, coordinates, coord_decimals=DEFAULT_DECIMALS):
 
     results = []
 
