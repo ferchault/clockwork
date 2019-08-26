@@ -1,5 +1,6 @@
 import os
 import rediscomm
+import gzip
 
 def correct_userpath(filepath):
     return os.path.expanduser(filepath)
