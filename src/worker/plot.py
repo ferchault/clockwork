@@ -83,14 +83,66 @@ def count_histogram(costs):
 def analyse_results(molobj, txtfile):
 
 
+    ffprop, forcefield = worker.get_forcefield(molobj)
+
+
+    coord = cheminfo.molobj_get_coordinates(molobj)
+    grad = forcefield.CalcGrad()
+    print(grad)
+    print(coord)
+    print()
+
+    worker.run_forcefield(forcefield, 500)
+    grad = forcefield.CalcGrad()
+    # print(grad)
+    # print(coord)
+    # print()
+    # print()
+
+    coord = cheminfo.molobj_get_coordinates(molobj)
+
     atoms = cheminfo.molobj_to_atoms(molobj)
     n_atoms = len(atoms)
 
-    energies, coordinates, costs = merge.read_txt(txtfile, n_atoms)
+    energies, coordinates = merge.read_txt(txtfile, n_atoms)
+    costs = [0]*len(energies)
 
 
-    # energy_histogram(energies)
-    count_histogram(costs)
+    energies = np.round(energies, 1)
+    print(np.unique(energies))
+    quit()
+
+    pick = 79
+
+    print(energies[pick])
+    coord = coordinates[pick]
+
+    cheminfo.molobj_set_coordinates(molobj, coord)
+    energy = worker.get_energy(molobj)
+    grad = forcefield.CalcGrad()
+    grad_norm = np.array(grad)
+    grad_norm = np.abs(grad_norm)
+    grad_norm = grad_norm.mean()
+    print(energy, grad_norm)
+
+    # opt
+    status = worker.run_forcefield(forcefield, 5, force=1e-6)
+
+    print(status)
+
+    energy = worker.get_energy(molobj)
+    grad = forcefield.CalcGrad()
+    grad_norm = np.array(grad)
+    grad_norm = np.abs(grad_norm)
+    grad_norm = grad_norm.mean()
+
+    print(energy, grad_norm)
+
+    # merge.dump_sdf(molobj, energies, coordinates, costs)
+
+    energy_histogram(energies)
+    # count_histogram(costs)
+
 
 
 
