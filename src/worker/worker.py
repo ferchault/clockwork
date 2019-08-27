@@ -10,6 +10,7 @@ import time
 from functools import partial
 
 import numpy as np
+from numpy import linalg
 from tqdm import tqdm
 
 import clockwork
@@ -573,47 +574,57 @@ def calculate_forcefield(molobj, conformer, torsions, origin_angles, delta_angle
     # Get current energy
     energy = ff.CalcEnergy()
 
-    # if energy > 80:
-    #
-    #     print(torsions, origin_angles, delta_angles)
-    #     print(energy, status)
-    #
-    #     print("id")
-    #     print(id(molobj_prime))
-    #     print(id(molobj))
-    #
-    #     molobj_test, status = cheminfo.sdfstr_to_molobj(sdfstr)
-    #     coordinates = conformer.GetPositions()
-    #     cheminfo.molobj_set_coordinates(molobj_test, coordinates)
-    #     ffprop_t, ff_t = get_forcefield(molobj)
-    #     run_forcefield(ff_t, 500)
-    #
-    #     print(coordinates)
-    #
-    #
-    #     for idxs in torsions:
-    #         angle = Chem.rdMolTransforms.GetDihedralDeg(conformer, *idxs)
-    #         print("ANGLE 1", angle)
-    #
-    #     f = open("_test_dumpsdf.sdf", 'w')
-    #     sdf = cheminfo.save_molobj(molobj)
-    #     f.write(sdf)
-    #
-    #     # prop, ff = get_forcefield(molobj)
-    #     # status = run_forcefield(ff, 500)
-    #     conformer = molobj_test.GetConformer()
-    #
-    #     for idxs in torsions:
-    #         angle = Chem.rdMolTransforms.GetDihedralDeg(conformer, *idxs)
-    #         print("ANGLE 2",angle)
-    #
-    #     print(energy, status)
-    #
-    #     sdf = cheminfo.save_molobj(molobj_test)
-    #     f.write(sdf)
-    #
-    #     f.close()
-    #     quit()
+    if status == 0:
+
+        grad = ff.CalcGrad()
+        grad = np.array(grad)
+        grad_norm = linalg.norm(grad)
+
+        if grad_norm > 1:
+            status = 1
+
+    debug = False
+    if energy > 1000 and debug:
+
+        print(torsions, origin_angles, delta_angles)
+        print(energy, status)
+
+        print("id")
+        print(id(molobj_prime))
+        print(id(molobj))
+
+        molobj_test, status = cheminfo.sdfstr_to_molobj(sdfstr)
+        coordinates = conformer.GetPositions()
+        cheminfo.molobj_set_coordinates(molobj_test, coordinates)
+        ffprop_t, ff_t = get_forcefield(molobj)
+        run_forcefield(ff_t, 500)
+
+        print(coordinates)
+
+
+        for idxs in torsions:
+            angle = Chem.rdMolTransforms.GetDihedralDeg(conformer, *idxs)
+            print("ANGLE 1", angle)
+
+        f = open("_test_dumpsdf.sdf", 'w')
+        sdf = cheminfo.save_molobj(molobj)
+        f.write(sdf)
+
+        # prop, ff = get_forcefield(molobj)
+        # status = run_forcefield(ff, 500)
+        conformer = molobj_test.GetConformer()
+
+        for idxs in torsions:
+            angle = Chem.rdMolTransforms.GetDihedralDeg(conformer, *idxs)
+            print("ANGLE 2",angle)
+
+        print(energy, status)
+
+        sdf = cheminfo.save_molobj(molobj_test)
+        f.write(sdf)
+
+        f.close()
+        quit()
 
     # Get current positions
     pos = conformer.GetPositions()

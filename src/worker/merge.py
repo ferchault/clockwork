@@ -883,15 +883,15 @@ def main():
         merge_sdfs(args.sdf)
 
     else:
-        # merge_results(args.sdf, args.txt)
+        merge_results(args.sdf, args.txt)
         # merge_results_cumulative(args.sdf, args.txt)
-        molobj, energies, coordinates, costs = merge_results_cumulative_prime(args.sdf, args.txt, molid=args.molid)
+        # molobj, energies, coordinates, costs = merge_results_cumulative_prime(args.sdf, args.txt, molid=args.molid)
 
-        if args.format == "sdf":
-            dump_sdf(molobj, energies, coordinates, costs)
-        else:
-            out = dump_txt(energies, coordinates, costs)
-            print(out)
+        # if args.format == "sdf":
+        #     dump_sdf(molobj, energies, coordinates, costs)
+        # else:
+        #     out = dump_txt(energies, coordinates, costs)
+        #     print(out)
 
 
     return
