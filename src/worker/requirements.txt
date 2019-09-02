@@ -6,4 +6,5 @@ ase
 rmsd
 joblib
 tqdm
+redis
 matplotlib

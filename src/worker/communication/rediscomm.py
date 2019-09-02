@@ -31,7 +31,7 @@ class Taskqueue(object):
 		self._con.hset(self._prefix + '_Started', self._taskid, self._starttime)
 		return task
 		
-	def _store_result(self, taskstring, resultstring, logmessage=None):
+	def _store_result(self, taskstring, resultstring, logmessage=None, storestring="Results"):
 		""" Signals task completion to redis and stores the results."""
 		# remove server-side backup
 		pipeline = self._con.pipeline()
@@ -39,7 +39,7 @@ class Taskqueue(object):
 		pipeline.hdel(self._prefix + '_Started', self._taskid)
 
 		# Store results and logs
-		pipeline.lpush(self._prefix + '_Results', resultstring)
+		pipeline.lpush(self._prefix + "_" + storestring, resultstring)
 		if logmessage is not None:
 			pipeline.hset(self._prefix + '_Log', taskstring, logmessage)
 		pipeline.execute()
@@ -80,6 +80,10 @@ class Taskqueue(object):
 		return time.time() + ((int(days)*24 + int(hours))*60 + int(minutes))*60 + int(seconds)
 
 	def main_loop(self, callback):
+		"""
+		callback should return (result_str, log_str, store_str)
+		which is the result, the status and where to put the result.
+		"""
 		deadline = self._get_deadline()
 		while True:
 			if deadline > 0 and deadline - time.time() < 120:
@@ -88,9 +92,9 @@ class Taskqueue(object):
 			if gztaskstring is None:
 				break
 			taskstring = gzip.decompress(gztaskstring).decode('utf8')
-			result_str, log_str = callback(taskstring)
+			result_str, log_str, store_str = callback(taskstring)
 			gzresultstring = gzip.compress(result_str.encode())
-			self._store_result(gztaskstring, gzresultstring, log_str)
+			self._store_result(gztaskstring, gzresultstring, log_str, storestring=store_str)
 
 	def insert(self, taskstring, iscompressed=False):
 		""" Enqueues a task. """
@@ -100,12 +104,35 @@ class Taskqueue(object):
 			gztaskstring = taskstring
 		self._con.lpush(self._prefix + '_Queue', gztaskstring)
 
-	def get_results(self, purge_after=False):
+	def insert_batch(self, taskstrings, iscompressed=False):
+		""" Enqueues multiple tasks. """
+		if not iscompressed:
+			gztaskstrings = [gzip.compress(_.encode()) for _ in taskstrings]
+		else:
+			gztaskstrings = taskstrings
+		pipe = self._con.pipeline()
+		batch_length = 0
+		for i in range(len(gztaskstrings)):
+			batch_length += 1
+			pipe.lpush(self._prefix + '_Queue', gztaskstrings[i])
+			if batch_length % 500 == 0:
+				pipe.execute()
+				pipe = self._con.pipeline()
+		pipe.execute()
+
+	def get_keys(self, search_filter='*'):
+		key = self._prefix + "_" + search_filter
+		results = self._con.keys(key)
+		results = [key.decode().replace(self._prefix + "_", "") for key in results]
+		return results
+
+	def get_results(self, key='Results', purge_after=False):
 		""" Fetches and optionally deletes the results."""
-		results = self._con.lrange(self._prefix + '_Results', 0, -1)
+		name = self._prefix + '_' + key
+		results = self._con.lrange(name, 0, -1)
 		results = [gzip.decompress(_).decode('utf8') for _ in results]
 		if purge_after:
-			self._con.delete(self._prefix + '_Results')
+			self._con.delete(name)
 		return results
 
 	def discover_projects(self):
