@@ -45,8 +45,8 @@ def energy_histogram(energies):
 
     energies = np.array(energies)
 
-    idxs, = np.where(energies < 20)
-    energies = energies[idxs]
+    # idxs, = np.where(energies < 20)
+    # energies = energies[idxs]
 
     # ax.set_xscale('log')
     ax.hist(energies)
@@ -70,7 +70,7 @@ def count_histogram(costs):
         cmap='PuRd' )
 
 
-    fig.colorbar(ghis, cax=cax, orientation='horizontal')
+    # fig.colorbar(ghis, cax=cax, orientation='horizontal')
 
     fig.savefig("_tmp_conf_his")
 
@@ -104,44 +104,44 @@ def analyse_results(molobj, txtfile):
     atoms = cheminfo.molobj_to_atoms(molobj)
     n_atoms = len(atoms)
 
-    energies, coordinates = merge.read_txt(txtfile, n_atoms)
-    costs = [0]*len(energies)
+    energies, coordinates, costs = merge.read_txt(txtfile, n_atoms)
+    # costs = [0]*len(energies)
 
 
-    energies = np.round(energies, 1)
-    print(np.unique(energies))
-    quit()
-
-    pick = 79
-
-    print(energies[pick])
-    coord = coordinates[pick]
-
-    cheminfo.molobj_set_coordinates(molobj, coord)
-    energy = worker.get_energy(molobj)
-    grad = forcefield.CalcGrad()
-    grad_norm = np.array(grad)
-    grad_norm = np.abs(grad_norm)
-    grad_norm = grad_norm.mean()
-    print(energy, grad_norm)
-
-    # opt
-    status = worker.run_forcefield(forcefield, 5, force=1e-6)
-
-    print(status)
-
-    energy = worker.get_energy(molobj)
-    grad = forcefield.CalcGrad()
-    grad_norm = np.array(grad)
-    grad_norm = np.abs(grad_norm)
-    grad_norm = grad_norm.mean()
-
-    print(energy, grad_norm)
-
+    # energies = np.round(energies, 1)
+    # print(np.unique(energies))
+    # quit()
+    #
+    # pick = 79
+    #
+    # print(energies[pick])
+    # coord = coordinates[pick]
+    #
+    # cheminfo.molobj_set_coordinates(molobj, coord)
+    # energy = worker.get_energy(molobj)
+    # grad = forcefield.CalcGrad()
+    # grad_norm = np.array(grad)
+    # grad_norm = np.abs(grad_norm)
+    # grad_norm = grad_norm.mean()
+    # print(energy, grad_norm)
+    #
+    # # opt
+    # status = worker.run_forcefield(forcefield, 5, force=1e-6)
+    #
+    # print(status)
+    #
+    # energy = worker.get_energy(molobj)
+    # grad = forcefield.CalcGrad()
+    # grad_norm = np.array(grad)
+    # grad_norm = np.abs(grad_norm)
+    # grad_norm = grad_norm.mean()
+    #
+    # print(energy, grad_norm)
+    #
     # merge.dump_sdf(molobj, energies, coordinates, costs)
 
     energy_histogram(energies)
-    # count_histogram(costs)
+    count_histogram(costs)
 
 
 

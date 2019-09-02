@@ -156,9 +156,6 @@ def merge_coordinates(atoms, energies, coordinates,
 
     """
 
-    print("here?")
-    print(len(coordinates))
-
     coordinates = np.asarray(coordinates)
 
     # find unique energies
@@ -172,8 +169,6 @@ def merge_coordinates(atoms, energies, coordinates,
 
         u_idxs, = np.where(energies == uenergy)
         u_coordinates = coordinates[u_idxs]
-
-        print(uenergy, len(u_idxs))
 
         if len(u_idxs) == 1:
             keepidx += list(u_idxs)
@@ -883,15 +878,18 @@ def main():
         merge_sdfs(args.sdf)
 
     else:
-        merge_results(args.sdf, args.txt)
-        # merge_results_cumulative(args.sdf, args.txt)
-        # molobj, energies, coordinates, costs = merge_results_cumulative_prime(args.sdf, args.txt, molid=args.molid)
+        #TODO Need flags
+        # merge_results(args.sdf, args.txt)
 
-        # if args.format == "sdf":
-        #     dump_sdf(molobj, energies, coordinates, costs)
-        # else:
-        #     out = dump_txt(energies, coordinates, costs)
-        #     print(out)
+        # merge_results_cumulative(args.sdf, args.txt)
+
+        molobj, energies, coordinates, costs = merge_results_cumulative_prime(args.sdf, args.txt, molid=args.molid)
+
+        if args.format == "sdf":
+            dump_sdf(molobj, energies, coordinates, costs)
+        else:
+            out = dump_txt(energies, coordinates, costs)
+            print(out)
 
 
     return

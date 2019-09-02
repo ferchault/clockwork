@@ -516,7 +516,8 @@ def calculate_forcefield(molobj, conformer, torsions, origin_angles, delta_angle
     ffprop=None,
     ff=None,
     delta=10**-7,
-    coord_decimals=6):
+    coord_decimals=6,
+    grad_threshold=100):
     """
 
 
@@ -580,8 +581,8 @@ def calculate_forcefield(molobj, conformer, torsions, origin_angles, delta_angle
         grad = np.array(grad)
         grad_norm = linalg.norm(grad)
 
-        if grad_norm > 1:
-            status = 1
+        if grad_norm > grad_threshold:
+            status = 4
 
     debug = False
     if energy > 1000 and debug:

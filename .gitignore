@@ -8,3 +8,8 @@ test.xyz
 *.bk
 *.stdout
 *.stderr
+*.sdf
+*.log
+*.png
+*.xyz
+*.backup.*

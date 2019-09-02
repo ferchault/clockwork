@@ -57,11 +57,49 @@ edge_prepare_jobs:
 	@${PYTHON} src/worker/worker.py --sdf examples/edgecase_1.sdf
 
 edge_local_jobs:
-	${PYTHON} src/worker/worker.py --sdf examples/edgecase_1.sdf --jobfile _edge_joblist.txt
+	${PYTHON} src/worker/worker.py --sdf examples/edgecase_1.sdf --jobfile _edge_joblist_test.txt
 
 edge_submit_redis:
 	${PYTHON} src/worker/communication/redis_submit.py --jobfile _edge_joblist.txt --redis-task edge
 
+edge_get_redis:
+	${PYTHON} src/worker/communication/redis_getresults.py --redis-task edge
+
+edge_merge:
+	pyprofile ${PYTHON} src/worker/merge.py --debug --sdf examples/edgecase_1.sdf --txt _tmp_edgedata/*.txt
+	# pyprofile ${PYTHON} src/worker/merge.py --debug --sdf examples/edgecase_1.sdf --txt _tmp_edgedata/0_4_1.txt
+	@# pyprofile ${PYTHON} src/worker/merge.py --debug --sdf examples/edgecase_1.sdf --txt _tmp_edgedata/0_4_1.txt
+
+de=_tmp_edgedata/
+ext=.txt.merged
+FILES=${de}0_1_1${ext}
+edge_merge_cost:
+	${PYTHON} src/worker/merge.py --debug --sdf examples/edgecase_1.sdf --txt "_tmp_edgedata/{:}_{:}_{:}.txt.merged" --molid 0 --format txt > _edge_0_results.txt
+	${PYTHON} src/worker/merge.py --debug --sdf examples/edgecase_1.sdf --txt "_tmp_edgedata/{:}_{:}_{:}.txt.merged" --molid 1 --format txt > _edge_1_results.txt
+
+edge_plot_cost:
+	${PYTHON} src/worker/plot.py --debug --sdf examples/edgecase_1.sdf --txt _edge_1_results.txt --molidx 1
+
+
+meh:
+	# ${PYTHON} src/worker/merge.py --debug --sdf examples/edgecase_1.sdf --txt \
+	# ${de}0_1_1${ext} \
+	# ${de}0_2_1${ext} \
+	# ${de}0_1_2${ext} \
+	# ${de}0_3_1${ext} \
+	# ${de}0_2_2${ext} \
+	# ${de}0_1_3${ext}
+	# ${PYTHON} src/worker/merge.py --debug --sdf examples/edgecase_1.sdf --txt \
+	# ${de}2_1_1${ext} \
+	# ${de}1_2_1${ext} \
+	# ${de}1_1_2${ext} \
+	# ${de}1_3_1${ext} \
+	# ${de}1_2_2${ext} \
+	# ${de}1_1_3${ext} \
+	# ${de}1_4_1${ext} \
+	# ${de}1_3_2${ext} \
+	# ${de}1_2_3${ext} \
+	# ${de}1_1_4${ext}
 
 c7o2_make_torsions:
 	${PYTHON} src/worker/admin.py --sdf ~/db/qm9.c7o2h10.sdf.gz
