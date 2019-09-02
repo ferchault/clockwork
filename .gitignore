@@ -5,3 +5,8 @@ test.xyz
 *.txt
 .pycache/
 *_tmp_*
+*.sdf
+*.log
+*.png
+*.xyz
+*.backup.*
