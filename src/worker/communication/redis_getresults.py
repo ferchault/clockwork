@@ -44,12 +44,15 @@ def main():
 
 
 
-    datadir = "_tmp_edgedata/"
+    datadir = "_tmp_dump_" + args.redis_task + "/"
 
     tasks = rediscomm.Taskqueue(redis_connection, redis_task)
 
     keys = tasks.get_keys(search_filter="Results_*")
     keys.sort()
+
+
+    # TODO Do pooling/batch get
 
     for key in keys:
 
