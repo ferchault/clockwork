@@ -1,6 +1,9 @@
 import time
 from tqdm import tqdm
 import sys
+import select
+
+import multiprocessing as mp
 
 import copy
 import numpy as np
@@ -587,7 +590,7 @@ def merge_result(atoms, energies, coordinates):
     return uenergies, ucoordinates
 
 
-def merge_results(sdffile, filenames):
+def merge_results_filenames(molobjs, filenames):
 
     # init
     energies = []
@@ -596,24 +599,43 @@ def merge_results(sdffile, filenames):
     atoms = []
     n_total = 0
 
-    molobjs = cheminfo.read_sdffile(sdffile[0])
-    molobjs = [molobj for molobj in molobjs]
+    # molobjs = cheminfo.read_sdffile(sdffile[0])
+    # molobjs = [molobj for molobj in molobjs]
     atoms_list = [cheminfo.molobj_to_atoms(molobj) for molobj in molobjs]
 
     for filename in filenames:
-
-        print("merging", filename)
 
         energies, coordinates, atoms = read_resulttxt(atoms_list, filename)
         energies, coordinates = merge_result(atoms, energies, coordinates)
         results = worker.prepare_redis_dump(energies, coordinates)
 
+        print("merging", filename)
         print("found {:} unique conformations".format(len(energies)))
 
         dumpfile = filename + ".merged"
         f = open(dumpfile, 'w')
         f.write(results)
         f.close()
+
+    return
+
+
+def merge_results_filename(filename, atoms_list, iolock=None):
+
+    energies, coordinates, atoms = read_resulttxt(atoms_list, filename)
+    energies, coordinates = merge_result(atoms, energies, coordinates)
+    results = worker.prepare_redis_dump(energies, coordinates)
+
+    dumpfile = filename + ".merged"
+
+    with open(dumpfile, 'w') as f:
+        f.write(results)
+
+    if iolock is None:
+        print("merging", filename, "and found {:}".format(len(energies)))
+    else:
+        with iolock:
+            print("merging", filename, "and found {:}".format(len(energies)))
 
     return
 
@@ -855,24 +877,130 @@ def dump_sdf(molobj, energies, coordinates, costs):
     return
 
 
+def merge_individual(molobjs, filenames, procs=0):
+
+    if procs == 0:
+        merge_results_filenames(molobjs, filenames)
+
+    else:
+        merge_individual_mp(molobjs, filenames, procs=procs)
+
+    return
+
+
+def process(q, iolock, func, args, kwargs):
+    """
+
+    multiprocessing interface for calling
+
+    func(x,*args, **kwargs) with coming from q
+
+    args
+        q - queue
+        iolock - print lock
+        func - function to be called
+        args - positional argument
+        kwargs - key words args
+
+    """
+
+    while True:
+
+        x = q.get()
+        if x is None: break
+        with iolock: print("get", x)
+
+        func(x, *args, **kwargs, iolock=iolock)
+
+    return
+
+
+def merge_individual_mp(molobjs, filenames, procs=1, debug=True):
+
+    print("started")
+
+    atoms_list = [cheminfo.molobj_to_atoms(molobj) for molobj in molobjs]
+
+    func = merge_results_filename
+    args = [atoms_list]
+    kwargs = {}
+
+    q = mp.Queue(maxsize=procs)
+    iolock = mp.Lock()
+    pool = mp.Pool(procs, initializer=process, initargs=(q, iolock, func, args, kwargs))
+
+    for x in filenames:
+        q.put(x) # stops if queue is full
+
+        if debug:
+            with iolock:
+                print("put", x)
+
+    for _ in range(procs):
+        q.put(None)
+
+    pool.close()
+    pool.join()
+
+    return
+
+
+def stdin():
+    """
+    Generator for reading txts from stdin
+    """
+
+    while sys.stdin in select.select([sys.stdin], [], [], 0)[0]:
+
+        line = sys.stdin.readline()
+
+        if not line:
+            yield from []
+            break
+
+        line = line.strip()
+        yield line
+
+
 def main():
 
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('-v', '--version', action='version', version="1.0")
+
     parser.add_argument('--txt', nargs="+", help='Read results from txt file (require sdf)', metavar="FILE")
+    parser.add_argument('--txtfmt', help='format for cost mergeing', metavar="STR")
     parser.add_argument('--sdf', nargs="+", action='store', help='', metavar='FILE')
     parser.add_argument('--sdfstdin', action='store_true', help='Read sdf files from stdin')
-    parser.add_argument('--format', action='store', help='What output format? (sdf, txt)', metavar='str')
+    parser.add_argument('--txtstdin', action='store_true', help='Read txt files from stdin')
     parser.add_argument('--molid', action='store', help='What molid from sdf should be used for txt', metavar='int', type=int)
+
+    parser.add_argument('--format', action='store', help='What output format? (sdf, txt)', metavar='str')
     parser.add_argument('--dump', action='store_true', help='dump sdf str to stdout')
+
     parser.add_argument('--debug', action='store_true', help='debug statements')
+    parser.add_argument('-j', '--procs', type=int, help='Merge using multiprocessing', default=0)
+
     args = parser.parse_args()
 
     if args.sdf is None:
         print("error: actually we need sdfs to merge")
         quit()
 
+
+    molobjs = [molobj for molobj in cheminfo.read_sdffile(args.sdf[0])]
+
+    if args.txtstdin:
+
+        pass
+
+    else:
+
+        filenames = [txt for txt in args.txt]
+        merge_individual(molobjs, filenames, procs=args.procs)
+
+
+    quit()
 
     if args.txt is None:
         merge_sdfs(args.sdf)
@@ -893,6 +1021,7 @@ def main():
 
 
     return
+
 
 
 def main_folder():
