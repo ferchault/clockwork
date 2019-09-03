@@ -592,6 +592,8 @@ def merge_result(atoms, energies, coordinates):
 
 def merge_results_filenames(molobjs, filenames):
 
+    print("filenames")
+
     # init
     energies = []
     coordinates = []
@@ -599,23 +601,10 @@ def merge_results_filenames(molobjs, filenames):
     atoms = []
     n_total = 0
 
-    # molobjs = cheminfo.read_sdffile(sdffile[0])
-    # molobjs = [molobj for molobj in molobjs]
     atoms_list = [cheminfo.molobj_to_atoms(molobj) for molobj in molobjs]
 
     for filename in filenames:
-
-        energies, coordinates, atoms = read_resulttxt(atoms_list, filename)
-        energies, coordinates = merge_result(atoms, energies, coordinates)
-        results = worker.prepare_redis_dump(energies, coordinates)
-
-        print("merging", filename)
-        print("found {:} unique conformations".format(len(energies)))
-
-        dumpfile = filename + ".merged"
-        f = open(dumpfile, 'w')
-        f.write(results)
-        f.close()
+        merge_results_filename(filename, atoms_list)
 
     return
 
@@ -632,10 +621,10 @@ def merge_results_filename(filename, atoms_list, iolock=None):
         f.write(results)
 
     if iolock is None:
-        print("merging", filename, "and found {:}".format(len(energies)))
+        print("merge", filename, "and found {:}".format(len(energies)))
     else:
         with iolock:
-            print("merging", filename, "and found {:}".format(len(energies)))
+            print("merge", filename, "and found {:}".format(len(energies)))
 
     return
 
@@ -888,7 +877,7 @@ def merge_individual(molobjs, filenames, procs=0):
     return
 
 
-def process(q, iolock, func, args, kwargs):
+def process(q, iolock, func, args, kwargs, debug=True):
     """
 
     multiprocessing interface for calling
@@ -907,17 +896,49 @@ def process(q, iolock, func, args, kwargs):
     while True:
 
         x = q.get()
+
+        if debug:
+            with iolock: print("get", x)
+
         if x is None: break
-        with iolock: print("get", x)
 
         func(x, *args, **kwargs, iolock=iolock)
 
     return
 
 
+def spawn(xlist, func, args, kwargs, procs=1):
+    """
+    spawn processes with func on xlist
+
+    """
+
+    q = mp.Queue(maxsize=procs)
+    iolock = mp.Lock()
+    pool = mp.Pool(procs, initializer=process, initargs=(q, iolock, func, args, kwargs))
+
+    for x in xlist:
+
+        q.put(x) # halts if queue is full
+
+        if debug:
+            with iolock:
+                print("put", x)
+
+    for _ in range(procs):
+        q.put(None)
+
+    pool.close()
+    pool.join()
+
+    # TODO Collect returns from pool
+
+    return
+
+
 def merge_individual_mp(molobjs, filenames, procs=1, debug=True):
 
-    print("started")
+    print("starting {:} procs".format(procs))
 
     atoms_list = [cheminfo.molobj_to_atoms(molobj) for molobj in molobjs]
 
@@ -943,6 +964,7 @@ def merge_individual_mp(molobjs, filenames, procs=1, debug=True):
     pool.join()
 
     return
+
 
 
 def stdin():
@@ -991,13 +1013,11 @@ def main():
     molobjs = [molobj for molobj in cheminfo.read_sdffile(args.sdf[0])]
 
     if args.txtstdin:
-
-        pass
-
+        filenames = stdin()
     else:
-
         filenames = [txt for txt in args.txt]
-        merge_individual(molobjs, filenames, procs=args.procs)
+
+    merge_individual(molobjs, filenames, procs=args.procs)
 
 
     quit()
