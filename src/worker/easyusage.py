@@ -42,7 +42,7 @@ def parallel(lines, func, args, kwargs, procs=1):
     func(line, *args, **kwargs)
 
     Args:
-        lines: generator or list to parallelise the computation.
+        lines: iterator to be parallelised.
         func: function to call every line.
         args: Variable length argument list for `func`.
         kwargs: Arbitrary keyword arguments for `func`.
@@ -92,17 +92,15 @@ def process(q, results, iolock, func, args, kwargs):
 
     multiprocessing interface for calling
 
-    func(x,*args, **kwargs) with `x` coming from q
+    func(x, *args, **kwargs) with `x` coming from q
 
     args
-        q: multiprocessing queue.
+        q: multiprocessing queue for distributing workload.
+        results: multiprocessing queue for collecting results.
         iolock: print lock.
         func: function to be called with `q` output.
         kwargs: Arbitrary keyword arguments for `func`.
         procs: how many processes to start.
-
-    return:
-        results: return values from `func`.
 
     """
 
