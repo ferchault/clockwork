@@ -11,6 +11,7 @@ import numpy as np
 import clockwork
 
 from chemhelp import cheminfo
+import easyusage
 import rmsd
 import worker
 
@@ -876,112 +877,19 @@ def merge_individual(molobjs, filenames, procs=0):
 
     return
 
-
-def process(q, iolock, func, args, kwargs, debug=True):
-    """
-
-    multiprocessing interface for calling
-
-    func(x,*args, **kwargs) with coming from q
-
-    args
-        q - queue
-        iolock - print lock
-        func - function to be called
-        args - positional argument
-        kwargs - key words args
-
-    """
-
-    while True:
-
-        x = q.get()
-
-        if debug:
-            with iolock: print("get", x)
-
-        if x is None: break
-
-        func(x, *args, **kwargs, iolock=iolock)
-
-    return
-
-
-def spawn(xlist, func, args, kwargs, procs=1):
-    """
-    spawn processes with func on xlist
-
-    """
-
-    q = mp.Queue(maxsize=procs)
-    iolock = mp.Lock()
-    pool = mp.Pool(procs, initializer=process, initargs=(q, iolock, func, args, kwargs))
-
-    for x in xlist:
-
-        q.put(x) # halts if queue is full
-
-        if debug:
-            with iolock:
-                print("put", x)
-
-    for _ in range(procs):
-        q.put(None)
-
-    pool.close()
-    pool.join()
-
-    # TODO Collect returns from pool
-
-    return
-
-
 def merge_individual_mp(molobjs, filenames, procs=1, debug=True):
 
     print("starting {:} procs".format(procs))
 
     atoms_list = [cheminfo.molobj_to_atoms(molobj) for molobj in molobjs]
 
-    func = merge_results_filename
-    args = [atoms_list]
-    kwargs = {}
+    # func = merge_results_filename
+    # args = [atoms_list]
+    # kwargs = {}
 
-    q = mp.Queue(maxsize=procs)
-    iolock = mp.Lock()
-    pool = mp.Pool(procs, initializer=process, initargs=(q, iolock, func, args, kwargs))
-
-    for x in filenames:
-        q.put(x) # stops if queue is full
-
-        if debug:
-            with iolock:
-                print("put", x)
-
-    for _ in range(procs):
-        q.put(None)
-
-    pool.close()
-    pool.join()
+    easyusage.parallel(filenames, merge_results_filename, [atoms_list], {}, procs=procs)
 
     return
-
-
-
-def stdin():
-    """
-    Generator for reading txts from stdin
-    """
-
-    while sys.stdin in select.select([sys.stdin], [], [], 0)[0]:
-
-        line = sys.stdin.readline()
-
-        if not line:
-            yield from []
-            break
-
-        line = line.strip()
-        yield line
 
 
 def main():
@@ -1013,7 +921,7 @@ def main():
     molobjs = [molobj for molobj in cheminfo.read_sdffile(args.sdf[0])]
 
     if args.txtstdin:
-        filenames = stdin()
+        filenames = easyusage.stdin()
     else:
         filenames = [txt for txt in args.txt]
 
