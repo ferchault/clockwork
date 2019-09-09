@@ -907,10 +907,6 @@ def merge_individual_mp(molobjs, filenames, procs=1, debug=True):
 
     atoms_list = [cheminfo.molobj_to_atoms(molobj) for molobj in molobjs]
 
-    # func = merge_results_filename
-    # args = [atoms_list]
-    # kwargs = {}
-
     easyusage.parallel(filenames, merge_results_filename, [atoms_list], {}, procs=procs)
 
     return
