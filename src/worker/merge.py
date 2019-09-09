@@ -909,7 +909,17 @@ def process(q, iolock, func, args, kwargs, debug=True):
 
 def spawn(xlist, func, args, kwargs, procs=1):
     """
-    spawn processes with func on xlist
+
+    takes generator xlist and distribute the workload unto n_procs calling
+    func(x, *args, **kwargs)
+
+
+    args:
+        xlist
+        func
+        args
+        kwargs
+        procs
 
     """
 
@@ -945,6 +955,8 @@ def merge_individual_mp(molobjs, filenames, procs=1, debug=True):
     func = merge_results_filename
     args = [atoms_list]
     kwargs = {}
+
+    # spawn(filenames, func, [atoms_list], {}, procs=procs)
 
     q = mp.Queue(maxsize=procs)
     iolock = mp.Lock()
