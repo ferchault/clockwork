@@ -128,10 +128,11 @@ c7o2_merge_keys:
 	@# @find _tmp_dump_case1 -name "*.txt" | ${PYTHON} src/worker/merge.py --debug --sdf ~/db/qm9.c7o2h10.sdf.gz --txtstdin -j 30
 
 c7o2_merge_cost:
-	${PYTHON} src/worker/merge.py --debug --sdf ~/db/qm9.c7o2h10.sdf.gz --txtfmt "_tmp_dump_data1/{:}_{:}_{:}.txt.merged" --molid 0-499
+	${PYTHON} src/worker/merge.py --debug --sdf ~/db/qm9.c7o2h10.sdf.gz --txtfmt "_tmp_dump_case1/{:}_{:}_{:}.txt.merged" --molid 0-499
 
 c7o2_optimize_sqm:
-	${PYTHON} src/worker/quantum.py --debug --sdf ~/db/qm9.c7o2h10.sdf.gz --txtfmt "_tmp_dump_data1/{:}.results" --molid 3
+	@mkdir -p _tmp_results_data1
+	${PYTHON} src/worker/quantum.py --debug --sdf ~/db/qm9.c7o2h10.sdf.gz --txtfmt "_tmp_dump_case1/{:}.results" --molid 0-499 -j 10
 
 c7o2_plot:
 	echo "TODO"
