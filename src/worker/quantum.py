@@ -1,6 +1,8 @@
+import os
 
 import worker
 import merge
+import easyusage
 
 from chemhelp import cheminfo
 from chemhelp.chemistry import mopac
@@ -37,9 +39,22 @@ def optmize_conformation(atoms, coord, filename=None):
     return oenergy, ocoord
 
 
-def parse_results(filename, molobj, dump_results=None):
+def parse_results(molidx, readtemplate, molobjs, dump_results=None, debug=True, **kwargs):
     """
     """
+
+    if debug:
+
+        filename = dump_results.format(molidx)
+
+        if os.path.exists(filename):
+            print("exists", molidx)
+            return
+
+        print("parsing", molidx)
+
+    filename = readtemplate.format(molidx)
+    molobj = molobjs[molidx]
 
     reference_smiles = cheminfo.molobj_to_smiles(molobj, remove_hs=True)
 
@@ -54,7 +69,13 @@ def parse_results(filename, molobj, dump_results=None):
 
     for i, energy, coord, cost in zip(range(len(energies)), energies, coordinates, costs):
 
-        oenergy, ocoord = optmize_conformation(atoms, coord, filename="_tmp_mopac_"+str(i)+ "_")
+        filename="_tmp_mopac_/_" + str(molidx) + "-" +str(i)+ "_"
+
+        try:
+            oenergy, ocoord = optmize_conformation(atoms, coord, filename=filename)
+        except:
+            print("unconverged", filename)
+            continue
 
         m = get_molobj(atoms, ocoord)
         smiles = cheminfo.molobj_to_smiles(m)
@@ -90,12 +111,23 @@ def parse_results(filename, molobj, dump_results=None):
 
         out = merge.dump_txt(renergies, rcoords, rcosts)
 
-        filename = dump_results
+        filename = dump_results.format(molidx)
         f = open(filename, 'w')
         f.write(out)
         f.close()
 
     return renergies, rcoords, rcosts
+
+
+def parallel_parse_results(readtemplate, molobjs, molidxs, writetemplate, procs=1):
+
+    easyusage.parallel(molidxs,
+        parse_results,
+        [readtemplate, molobjs],
+        {"dump_results": writetemplate},
+        procs=procs)
+
+    return
 
 
 def main():
@@ -109,7 +141,7 @@ def main():
 
     parser.add_argument('--txtfmt', help='format for cost mergeing', metavar="STR")
     parser.add_argument('--sdf', nargs="+", action='store', help='', metavar='FILE')
-    parser.add_argument('--molid', action='store', help='What molid from sdf should be used for txt', metavar='int(s)', type=int)
+    parser.add_argument('--molid', action='store', help='What molid from sdf should be used for txt', metavar='int(s)')
 
     parser.add_argument('--debug', action='store_true', help='debug statements')
 
@@ -121,13 +153,25 @@ def main():
         print("error: actually we need sdfs information")
         quit()
 
+    molidxs = args.molid
+    molidxs = molidxs.split("-")
+    if len(molidxs) == 1:
+        molidxs = [int(molidx) for molidx in molidxs]
+    else:
+        molidxs = [int(molidx) for molidx in molidxs]
+        molidxs = range(molidxs[0], molidxs[1]+1)
+
     # molobj db
     molobjs = [molobj for molobj in cheminfo.read_sdffile(args.sdf[0])]
 
-    filename = args.txtfmt.format(args.molid)
-    molobj = molobjs[args.molid]
+    dump_results = "_tmp_results_data1/{:}.results"
 
-    parse_results(filename, molobj, dump_results="_tmp_results_data1/{:}.results".format(args.molid))
+    if args.procs > 0:
+        parallel_parse_results(args.txtfmt, molobjs, molidxs, dump_results, procs=args.procs)
+        return
+
+    for idx in molidxs:
+        parse_results(idx, args.txtfmt, molobjs, dump_results="_tmp_results_data1/{:}.results".format(args.molid))
 
     return
 

@@ -975,7 +975,7 @@ def main():
 
         molidxs = args.molid
         molidxs = molidxs.split("-")
-        if len(molidxs) == 0:
+        if len(molidxs) == 1:
             molidxs = [int(molidx) for molidx in molidxs]
         else:
             molidxs = [int(molidx) for molidx in molidxs]
