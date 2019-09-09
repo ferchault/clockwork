@@ -157,16 +157,17 @@ def cumulative_similarity(atoms, representations,
 
 
 def merge_cost(atoms,
-    energies_x,
-    energies_y,
-    representations_x,
-    representations_y,
-    costs_x,
-    costs_y):
+    energies,
+    coordinates,
+    costs):
+    """
+    """
 
-    
+    # TODO hmmm, not sure if correct costs are chosen
 
-    return
+    idxs = merge_coordinates(atoms, energies, coordinates)
+
+    return idxs
 
 
 def merge_coordinates(atoms, energies, coordinates,
@@ -177,7 +178,9 @@ def merge_coordinates(atoms, energies, coordinates,
 
     """
 
+
     coordinates = np.asarray(coordinates)
+
 
     # find unique energies
     energies = np.round(energies, decimals=decimals)
