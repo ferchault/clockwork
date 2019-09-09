@@ -764,23 +764,6 @@ def run_jobline(origins, molobjs, tordbs, line,
     return job_energies, job_coordinates
 
 
-
-#####
-
-def readstdin_sdf():
-
-    while sys.stdin in select.select([sys.stdin], [], [], 0)[0]:
-
-        line = sys.stdin.readline()
-
-        if not line:
-            yield from []
-            break
-
-        line = line.strip()
-        yield line
-
-
 #####
 
 def read_tordb(filename):
