@@ -131,7 +131,7 @@ c7o2_merge_cost:
 	${PYTHON} src/worker/merge.py --debug --sdf ~/db/qm9.c7o2h10.sdf.gz --txtfmt "_tmp_dump_data1/{:}_{:}_{:}.txt.merged" --molid 0-499
 
 c7o2_optimize_sqm:
-	echo "TODO"
+	${PYTHON} src/worker/quantum.py --debug --sdf ~/db/qm9.c7o2h10.sdf.gz --txtfmt "_tmp_dump_data1/{:}.results" --molid 3
 
 c7o2_plot:
 	echo "TODO"
