@@ -117,3 +117,14 @@ c7o2_prepare_jobs:
 c7o2_submit_redis:
 	${PYTHON} src/worker/communication/redis_submit.py --jobfile _case1_joblist2.txt --redis-task case1
 
+c7o2_merge_cost:
+	${PYTHON} src/worker/merge.py --debug --sdf ~/db/qm9.c7o2h10.sdf.gz --txtfmt "_tmp_dump_data1/{:}_{:}_{:}.txt.merged" --molid 0-499
+
+c7o2_plot:
+	pass
+
+c7o2_pm6:
+	
+
+
+
