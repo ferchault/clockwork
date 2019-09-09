@@ -37,6 +37,23 @@ memory = joblib.Memory(cachedir, verbose=0)
 
 DEFAULT_DECIMALS = 5
 
+
+def stdprint(txt, std="out", iolock=None):
+
+    if std == "out":
+        std = sys.stdout
+    elif std == "err":
+        std = sys.stderr
+
+    if iolock is None:
+        print(txt, file=std)
+    else:
+        with iolock:
+            print(txt, file=std)
+
+    return
+
+
 def get_representations_fchl(atoms, coordinates_list, max_size=30):
 
     if max_size is None:
@@ -514,10 +531,16 @@ def generate_sdf(filename):
 
 
 def read_txt(filename, n_atoms):
+    """
+
+    """
 
     energies = []
     coordinates = []
     costs = []
+
+    if not os.path.exists(filename):
+        return None, None
 
     lines = open(filename, 'r').readlines()
 
@@ -630,7 +653,7 @@ def merge_results_filename(filename, atoms_list, iolock=None):
     return
 
 
-def merge_results_cumulative_prime(sdffile, filenametemplate, debug=True, molid=0):
+def merge_results_cumulative_prime(molid, molobj, filenametemplate, debug=True, dump_results=None, iolock=None):
 
     # the G list
     combos = clockwork.generate_linear_costlist()
@@ -643,17 +666,6 @@ def merge_results_cumulative_prime(sdffile, filenametemplate, debug=True, molid=
     costs = []
     n_total = 0
 
-    molobjs = cheminfo.read_sdffile(sdffile[0])
-    molobjs = [molobj for molobj in molobjs]
-    atoms_list = [cheminfo.molobj_to_atoms(molobj) for molobj in molobjs]
-
-    filenametemplate = filenametemplate[0]
-
-    if molid is None:
-        print("hey, select molid")
-        quit()
-
-    molobj = molobjs[molid]
     atoms = cheminfo.molobj_to_atoms(molobj)
     n_atoms = len(atoms)
 
@@ -661,9 +673,14 @@ def merge_results_cumulative_prime(sdffile, filenametemplate, debug=True, molid=
 
         filename = filenametemplate.format(molid, *combo)
 
-        print(filename, file=sys.stderr)
+        stdprint(filename, std="err", iolock=iolock)
 
         energies_next, coordinates_next = read_txt(filename, n_atoms)
+
+        # file did not exists
+        if energies_next is None:
+            continue
+
         representations_next = [sim.get_representation(atoms, coord) for coord in coordinates_next]
 
         if len(energies) == 0:
@@ -702,9 +719,16 @@ def merge_results_cumulative_prime(sdffile, filenametemplate, debug=True, molid=
             print(" - new", n_new, file=sys.stderr)
             print("total", n_total, file=sys.stderr)
 
-    # TODO Dump sdf and costs
 
-    return molobj, energies, coordinates, costs
+    if dump_results:
+
+        out = dump_txt(energies, coordinates, costs)
+        filename = dump_results.format(molid)
+        f = open(filename, 'w')
+        f.write(out)
+        f.close()
+
+    return energies, coordinates, costs
 
 
 
@@ -892,6 +916,24 @@ def merge_individual_mp(molobjs, filenames, procs=1, debug=True):
     return
 
 
+def merge_cost_multiple(molidxs, molobjs, filetemplate, procs=0):
+
+    dumpfile = filetemplate.split("/")
+    dumpfile[-1] = "{:}.results"
+    dumpfile = "/".join(dumpfile)
+
+    if procs == 0:
+
+        for molidx in molidxs:
+            molobj = molobjs[molidx]
+            energies, coordinates, costs = merge_results_cumulative_prime(molidx, molobj, filetemplate, dump_results=dumpfile)
+
+    else:
+        easyusage.parallel(molidxs, merge_results_cumulative_prime, [molobjs, filetemplate], {"dump_result": filetemplate.replace(".txt.merged", ".result")}, procs=procs)
+
+    return
+
+
 def main():
 
     import argparse
@@ -903,7 +945,7 @@ def main():
     parser.add_argument('--sdf', nargs="+", action='store', help='', metavar='FILE')
     parser.add_argument('--sdfstdin', action='store_true', help='Read sdf files from stdin')
     parser.add_argument('--txtstdin', action='store_true', help='Read txt files from stdin')
-    parser.add_argument('--molid', action='store', help='What molid from sdf should be used for txt', metavar='int', type=int)
+    parser.add_argument('--molid', action='store', help='What molid from sdf should be used for txt', metavar='int')
 
     parser.add_argument('--format', action='store', help='What output format? (sdf, txt)', metavar='str')
     parser.add_argument('--dump', action='store_true', help='dump sdf str to stdout')
@@ -920,12 +962,38 @@ def main():
 
     molobjs = [molobj for molobj in cheminfo.read_sdffile(args.sdf[0])]
 
+    # Parse txt files individually
     if args.txtstdin:
         filenames = easyusage.stdin()
-    else:
+        merge_individual(molobjs, filenames, procs=args.procs)
+    elif args.txt:
         filenames = [txt for txt in args.txt]
+        merge_individual(molobjs, filenames, procs=args.procs)
 
-    merge_individual(molobjs, filenames, procs=args.procs)
+
+    # Cost merge using txtfilenames format. Should have three {:} expandables
+    if args.txtfmt:
+
+        molidxs = args.molid
+        molidxs = molidxs.split("-")
+        if len(molidxs) == 0:
+            molidxs = [int(molidx) for molidx in molidxs]
+        else:
+            molidxs = [int(molidx) for molidx in molidxs]
+            molidxs = range(molidxs[0], molidxs[1]+1)
+
+
+        merge_cost_multiple(molidxs, molobjs, args.txtfmt)
+
+        # molobj = molobjs[args.molid]
+        # energies, coordinates, costs = merge_results_cumulative_prime(args.molid, molobj, args.txtfmt)
+
+        if args.format == "sdf":
+            dump_sdf(molobj, energies, coordinates, costs)
+        else:
+            out = dump_txt(energies, coordinates, costs)
+            print(out)
+
 
 
     quit()
@@ -939,7 +1007,7 @@ def main():
 
         # merge_results_cumulative(args.sdf, args.txt)
 
-        molobj, energies, coordinates, costs = merge_results_cumulative_prime(args.sdf, args.txt, molid=args.molid)
+        # molobj, energies, coordinates, costs = merge_results_cumulative_prime(args.sdf, args.txt)
 
         if args.format == "sdf":
             dump_sdf(molobj, energies, coordinates, costs)

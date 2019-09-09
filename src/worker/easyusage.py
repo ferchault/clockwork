@@ -34,7 +34,7 @@ def stdin():
 def parallel(lines, func, args, kwargs, procs=1):
     """
 
-    Takes a list or a generator `lines` and spawns `procs` processes, calling
+    Takes iterator (list or generator) `lines` and spawns # `procs` processes, calling
     `func` with prefined arguments `args` and `kwargs`.
 
     Using a queue and multiprocessing to call `func` with the format
