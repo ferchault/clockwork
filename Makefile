@@ -117,3 +117,16 @@ c7o2_prepare_jobs:
 c7o2_submit_redis:
 	${PYTHON} src/worker/communication/redis_submit.py --jobfile _case1_joblist2.txt --redis-task case1
 
+c7o2_get_redis:
+	mkdir -p _tmp_dump_case1
+	${PYTHON} src/worker/communication/redis_getresults.py --redis-task case1
+
+c7o2_merge_keys:
+	${PYTHON} src/worker/merge.py -j 0 --debug --sdf ~/db/qm9.c7o2h10.sdf.gz --txt _tmp_dump_case1/0_1_1.txt.merged _tmp_dump_case1/0_1_1.txt.merged
+	@# ${PYTHON} src/worker/merge.py -j 0 --debug --sdf ~/db/qm9.c7o2h10.sdf.gz --txt _ _tmp_dump_case1/32_2_2.txt _tmp_dump_case1/322_2_4.txt _tmp_dump_case1/218_1_2.txt _tmp_dump_case1/398_2_1.txt
+	@# @find _tmp_dump_case1 -name "*.txt" | ${PYTHON} src/worker/merge.py --debug --sdf ~/db/qm9.c7o2h10.sdf.gz --txtstdin -j 30
+
+c7o2_merge_costs:
+	echo "TODO"
+
+
