@@ -4,12 +4,13 @@ PYTHON=src/worker/env/bin/python
 workers:
 	# ${PYTHON} src/worker/worker.py --sdf _tmp_examples/pentane_nosymmetry.sdf --jobfile _tmp_joblist_test.txt -j 2
 	# ${PYTHON} src/worker/worker.py --sdf _tmp_examples/pentane_nosymmetry.sdf --jobfile _tmp_joblist_test.txt -j 30
-	${PYTHON} src/worker/worker.py --sdf _tmp_examples/pentane_nosymmetry.sdf --jobfile _tmp_joblist.txt -j 30
-	${PYTHON} src/worker/worker.py --sdf examples/pentane_nosymmetry.sdf --jobfile _tmp_joblist_unconv.txt -j 1
+	# ${PYTHON} src/worker/worker.py --sdf _tmp_examples/pentane_nosymmetry.sdf --jobfile _tmp_joblist.txt -j 30
+	# ${PYTHON} src/worker/worker.py --sdf examples/pentane_nosymmetry.sdf --jobfile _tmp_joblist_unconv.txt -j 1
+	# ${PYTHON} src/worker/worker.py --sdf examples/pentane_nosymmetry.sdf --jobfile _tmp_joblist.txt
 	@# ${PYTHON} src/worker/worker.py --sdf _tmp_examples/pentane_nosymmetry.sdf --jobfile _tmp_joblist.txt -j 30
 
 worker:
-	${PYTHON} src/worker/worker.py --sdf _tmp_examples/pentane_nosymmetry.sdf --jobfile _tmp_joblist_test.txt
+	# ${PYTHON} src/worker/worker.py --sdf _tmp_examples/pentane_nosymmetry.sdf --jobfile _tmp_joblist_test.txt
 	# pyprofile ${PYTHON} src/worker/worker.py --sdf examples/pentane_nosymmetry.sdf --jobfile _tmp_joblist.txt
 	# pyprofile ${PYTHON} src/worker/worker.py --sdf examples/pentane_nosymmetry.sdf --jobfile _tmp_joblist_unconv.txt
 	@# pyprofile ${PYTHON} src/worker/worker.py --sdf examples/pentane_nosymmetry.sdf --jobfile _tmp_joblist_empty.txt
@@ -17,7 +18,7 @@ worker:
 	# pyprofile ${PYTHON} src/worker/worker.py --sdf examples/pentane_nosymmetry.sdf --jobfile _tmp_joblist_unconv.txt
 	@# pyprofile ${PYTHON} src/worker/worker.py --sdf examples/pentane_nosymmetry.sdf --jobfile _tmp_joblist_unconv.txt
 	@# ${PYTHON} src/worker/worker.py --sdf examples/pentane_nosymmetry.sdf -j 1 --jobfile _tmp_joblist_1.txt
-	${PYTHON} src/worker/worker.py --sdf examples/pentane_nosymmetry.sdf -j 1 --jobfile _tmp_joblist_1-1.txt
+	${PYTHON} src/worker/worker.py --sdf examples/pentane_nosymmetry.sdf --jobfile _tmp_joblist_1-1.txt
 
 new_jobs:
 	@# pyprofile ${PYTHON} src/worker/worker.py --sdf examples/pentane_nosymmetry.sdf --jobcombos "1,7" "1,8"
@@ -112,11 +113,14 @@ c7o2_make_torsions:
 	${PYTHON} src/worker/admin.py --sdf ~/db/qm9.c7o2h10.sdf.gz
 
 c7o2_prepare_jobs:
-	@${PYTHON} src/worker/worker.py --sdf ~/db/qm9.c7o2h10.sdf.gz --sdftor ~/db/qm9.c7o2h10.torsions --jobcombos "1,1" "2,1" "1,2" "3,1" "2,2" "1,3" "3,2" "2,3" "1,4""3,3" "2,4" "1,5" > _case1_joblist2.txt
+	# @${PYTHON} src/worker/worker.py --sdf ~/db/qm9.c7o2h10.sdf.gz --sdftor ~/db/qm9.c7o2h10.torsions --jobcombos "1,1" "2,1" "1,2" "3,1" "2,2" "1,3" "3,2" "2,3" "1,4" "3,3" "2,4" "1,5" > _case1_joblist2.txt
+	${PYTHON} src/worker/worker.py --sdf ~/db/qm9.c7o2h10.sdf.gz --sdftor ~/db/qm9.c7o2h10.torsions --jobcombos "1,1" "2,1" "1,2" "3,1" "2,2" "1,3" "3,2" "2,3" "1,4" "3,3" > _case1_joblist3.txt
+
+c7o2_TEST_local_worker:
+	${PYTHON} src/worker/worker.py --sdf ~/db/qm9.c7o2h10.sdf.gz --sdftor ~/db/qm9.c7o2h10.torsions --jobfile _case1_joblist3_cutx.txt
 
 c7o2_submit_redis:
-	${PYTHON} src/worker/communication/redis_submit.py --jobfile _case1_joblist2.txt --redis-task case1
-
+	${PYTHON} src/worker/communication/redis_submit.py --jobfile _case1_joblist3.txt --redis-task case1
 
 c7o2_get_redis:
 	mkdir -p _tmp_dump_case1
@@ -135,6 +139,6 @@ c7o2_optimize_sqm:
 	${PYTHON} src/worker/quantum.py --debug --sdf ~/db/qm9.c7o2h10.sdf.gz --txtfmt "_tmp_dump_case1/{:}.results" --molid 0-499 -j 10
 
 c7o2_plot:
-	echo "TODO"
+	find _tmp_results_data1 -name "*.results" | ${PYTHON} src/worker/plot.py --readtxt --sdf ~/db/qm9.c7o2h10.sdf.gz
 
 
