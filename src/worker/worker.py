@@ -13,6 +13,8 @@ import numpy as np
 from numpy import linalg
 from tqdm import tqdm
 
+import rmsd
+import quantum
 import clockwork
 import merge
 import similarity_fchl19 as sim
@@ -125,6 +127,7 @@ def generate_jobs(molobjs, args, tordb=None,
         tordb = [cheminfo.get_torsions(molobj) for molobj in molobjs]
 
 
+    # TODO only first 500 molecules
     for i in range(n_molecules)[:500]:
 
         molobj = molobjs[i]
@@ -408,7 +411,7 @@ def clean_conformers(atoms, energies, coordinates, states=None):
     return idxs
 
 
-def get_conformations(molobj, torsions, resolutions):
+def get_conformations(molobj, torsions, resolutions, method="sqm", debug=False):
 
     molobj = copy.deepcopy(molobj)
 
@@ -443,15 +446,45 @@ def get_conformations(molobj, torsions, resolutions):
     # Get resolution angles
     angle_iterator = clockwork.generate_angles(resolutions, n_torsions)
 
+
+    # set calculate func
+    if method == "ff":
+        # rdkit mmff
+        calculate_method = calculate_forcefield
+        cal_kwargs = {
+            "ffprop": ffprop,
+            "ff": forcefield
+        }
+    else:
+        atoms = cheminfo.molobj_to_atoms(molobj)
+        atoms_str = [cheminfo.convert_atom(atom) for atom in atoms]
+        smiles = quantum.get_smiles(atoms, origin)
+        calculate_method = calculate_mopac
+        cal_kwargs = {
+            "ffprop": ffprop,
+            "atoms": atoms,
+            "reference_smiles": smiles
+        }
+
+
     for angle in angle_iterator:
 
         # reset coordinates
         set_coordinates(conformer, origin)
 
         # Minimze with torsion angle constraint
-        energy, pos, status = calculate_forcefield(molobj, conformer, torsions, origin_angles, angle,
-                ffprop=ffprop,
-                ff=forcefield)
+        # energy, pos, status = calculate_forcefield(molobj, conformer, torsions, origin_angles, angle,
+        #         ffprop=ffprop,
+        #         ff=forcefield)
+
+        if debug:
+            start = time.time()
+
+        energy, pos, status = calculate_method(molobj, conformer, torsions, origin_angles, angle, **cal_kwargs)
+
+        if debug:
+            end = time.time()
+            print("{:6.5f}s".format(end-start), "{:6.2f}".format(energy), status)
 
         # collect
         energies += [energy]
@@ -510,6 +543,59 @@ def get_sdfcontent(sdffile, rtn_atoms=False):
         return molobjs[0], atoms, energies, coordinates
 
     return energies, coordinates
+
+
+def calculate_mopac(molobj, conformer, torsions, origin_angles, delta_angles,
+    delta=10**-7,
+    coord_decimals=6,
+    atoms=None,
+    ffprop=None,
+    reference_smiles=None):
+
+    sdfstr = cheminfo.molobj_to_sdfstr(molobj)
+    molobj_prime, status = cheminfo.sdfstr_to_molobj(sdfstr)
+    conformer_prime = molobj_prime.GetConformer()
+
+    # Setup constrained forcefield
+    # ffprop_prime, ffc = get_forcefield(molobj_prime)
+    ffc = ChemicalForceFields.MMFFGetMoleculeForceField(molobj_prime, ffprop)
+
+    # Set angles and constrains for all torsions
+    for i, angle in enumerate(delta_angles):
+
+        set_angle = origin_angles[i] + angle
+
+        # Set clockwork angle
+        try: Chem.rdMolTransforms.SetDihedralDeg(conformer_prime, *torsions[i], set_angle)
+        except: pass
+
+        # Set forcefield constrain
+        ffc.MMFFAddTorsionConstraint(*torsions[i], False,
+            set_angle-delta, set_angle+delta, 1.0e10)
+
+    # minimize constrains
+    status = run_forcefield(ffc, 500)
+
+    # Set result
+    coordinates = conformer_prime.GetPositions()
+    coordinates = np.round(coordinates, coord_decimals) # rdkit hack, read description
+
+    try:
+        energy, ocoordinates = quantum.optmize_conformation(atoms, coordinates)
+        status = 0
+        coordinates = ocoordinates
+
+        if reference_smiles is not None:
+            new_smiles = quantum.get_smiles(atoms, coordinates)
+
+            if new_smiles != reference_smiles:
+                status = 5
+
+    except:
+        energy = 0.0
+        status = 4
+
+    return energy, coordinates, status
 
 
 def calculate_forcefield(molobj, conformer, torsions, origin_angles, delta_angles,
@@ -868,6 +954,11 @@ def redis_worker(origins, moldb, tordb, lines, debug=False):
 
     storestring = "Results_" + "_".join(line)
     status = ""
+
+    # Only log errors
+    status.strip()
+    if status == "":
+        status = None
 
     return results, status, storestring
 

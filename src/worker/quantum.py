@@ -23,13 +23,31 @@ def get_molobj(atoms, coord):
 
     return m
 
+def get_smiles(atoms, coord):
+
+    m = get_molobj(atoms, coord)
+    smi = Chem.MolToSmiles(m, isomericSmiles=False)
+
+    return smi
+
 
 def optmize_conformation(atoms, coord, filename=None):
     """
 
     """
 
-    properties = mopac.calculate(atoms, coord, write_only=False, label=filename)
+    if filename is None:
+
+        # TODO Get TMPDIR, if running in SLURM, otherwise _tmp_mopac_
+        # TMPDIR
+        filename = "_tmp_mopac_opt_"
+
+    parameters = {
+        "method": "PM6",
+        "keywords": "precise"
+    }
+
+    properties = mopac.calculate(atoms, coord, parameters=parameters, write_only=False, label=filename)
 
     oenergy = properties["h"]
     ocoord = properties["coord"]
