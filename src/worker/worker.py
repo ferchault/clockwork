@@ -128,7 +128,7 @@ def generate_jobs(molobjs, args, tordb=None,
 
 
     # TODO only first 500 molecules
-    for i in range(n_molecules)[:500]:
+    for i in range(n_molecules)[:20]:
 
         molobj = molobjs[i]
         torsions = tordb[i]
@@ -590,7 +590,6 @@ def calculate_mopac(molobj, conformer, torsions, origin_angles, delta_angles,
 
             if new_smiles != reference_smiles:
                 status = 5
-
     except:
         energy = 0.0
         status = 4

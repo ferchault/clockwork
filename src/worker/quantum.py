@@ -38,9 +38,12 @@ def optmize_conformation(atoms, coord, filename=None):
 
     if filename is None:
 
-        # TODO Get TMPDIR, if running in SLURM, otherwise _tmp_mopac_
-        # TMPDIR
         filename = "_tmp_mopac_opt_"
+
+        # If slurm, then read/write to tmpdir
+        tmpkey = "TMPDIR"
+        if tmpkey in os.environ:
+            filename = os.environ[tmpkey] + "/" + filename
 
     parameters = {
         "method": "PM6",
