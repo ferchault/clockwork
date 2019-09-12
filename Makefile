@@ -114,13 +114,15 @@ c7o2_make_torsions:
 
 c7o2_prepare_jobs:
 	# @${PYTHON} src/worker/worker.py --sdf ~/db/qm9.c7o2h10.sdf.gz --sdftor ~/db/qm9.c7o2h10.torsions --jobcombos "1,1" "2,1" "1,2" "3,1" "2,2" "1,3" "3,2" "2,3" "1,4" "3,3" "2,4" "1,5" > _case1_joblist2.txt
-	${PYTHON} src/worker/worker.py --sdf ~/db/qm9.c7o2h10.sdf.gz --sdftor ~/db/qm9.c7o2h10.torsions --jobcombos "1,1" "2,1" "1,2" "3,1" "2,2" "1,3" "3,2" "2,3" "1,4" "3,3" > _case1_joblist3.txt
+	# @${PYTHON} src/worker/worker.py --sdf ~/db/qm9.c7o2h10.sdf.gz --sdftor ~/db/qm9.c7o2h10.torsions --jobcombos "1,1" "2,1" "1,2" "3,1" "2,2" "1,3" "3,2" "2,3" "1,4" > _case1_joblist3_less.txt
+	${PYTHON} src/worker/worker.py --sdf ~/db/qm9.c7o2h10.sdf.gz --sdftor ~/db/qm9.c7o2h10.torsions --jobcombos "1,1" "2,1" "1,2" "3,1" "2,2" "1,3" "3,2" "2,3" "1,4" > _case1_joblist3_less.txt
 
 c7o2_TEST_local_worker:
-	${PYTHON} src/worker/worker.py --sdf ~/db/qm9.c7o2h10.sdf.gz --sdftor ~/db/qm9.c7o2h10.torsions --jobfile _case1_joblist3_cutx.txt
+	@# ${PYTHON} src/worker/worker.py --sdf ~/db/qm9.c7o2h10.sdf.gz --sdftor ~/db/qm9.c7o2h10.torsions --jobfile _case1_joblist3_cutx.txt
+	${PYTHON} -u src/worker/worker.py --sdf ~/db/qm9.c7o2h10.sdf.gz --sdftor ~/db/qm9.c7o2h10.torsions --jobfile _case1_joblist_test.txt
 
 c7o2_submit_redis:
-	${PYTHON} src/worker/communication/redis_submit.py --jobfile _case1_joblist3.txt --redis-task case1
+	${PYTHON} src/worker/communication/redis_submit.py --jobfile _case1_joblist3_less.txt --redis-task case1
 
 c7o2_get_redis:
 	mkdir -p _tmp_dump_case1
