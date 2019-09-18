@@ -128,7 +128,8 @@ def generate_jobs(molobjs, args, tordb=None,
 
 
     # TODO only first 500 molecules
-    for i in range(n_molecules)[:20]:
+    # for i in range(n_molecules)[:20]:
+    for i in range(n_molecules)[20:100]:
 
         molobj = molobjs[i]
         torsions = tordb[i]

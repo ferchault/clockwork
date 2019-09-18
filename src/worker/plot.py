@@ -1,8 +1,10 @@
 import numpy as np
+from scipy import stats
 
 from chemhelp import cheminfo
 import worker
 import merge
+import easyusage
 
 import matplotlib.pyplot as plt
 
@@ -144,9 +146,73 @@ def analyse_results(molobj, txtfile):
     count_histogram(costs)
 
 
+    return
 
+
+def anatole_todo(results):
+
+    fig_en = plt.figure()
+    ax_en = fig_en.add_subplot(111)
+
+    all_energies = []
+    count = []
+
+    for energies, coords, costs in results:
+        energies = np.array(energies)
+        # energies -= min(energies)
+        print(energies)
+
+
+        n = len(energies)
+        count.append(n)
+
+        all_energies += list(energies)
+
+    kde = stats.gaussian_kde(all_energies)
+    xx = np.linspace(min(all_energies), max(all_energies), 2000)
+    ax_en.plot(xx, kde(xx))
+    ax_en.set_xlabel("Energy [kcal/mol]")
+    ax_en.set_ylabel("No. Conformations")
+
+    fig_en.savefig("_tmp_energies")
+
+
+    count.sort()
+
+    # Conformer count plot
+    fig_count = plt.figure()
+    ax_count = fig_count.add_subplot(111)
+    ax_count.plot(count, "k.-")
+    ax_count.set_xlabel("Index")
+    ax_count.set_ylabel("No. Conformers")
+    fig_count.savefig("_tmp_count")
+
+    # energy_histogram(count)
 
     return
+
+
+def get_txt(molobjs):
+
+    for filename in easyusage.stdin():
+
+        idx = filename.split("/")[-1]
+        idx = idx.replace(".results", "")
+        idx = int(idx)
+
+        molobj = molobjs[idx]
+        atoms = cheminfo.molobj_to_atoms(molobj)
+        n_atoms = len(atoms)
+
+        try:
+            energies, coords, costs = merge.read_txt(filename, n_atoms)
+        except:
+            print("error:", filename)
+            continue
+
+        # merge.dump_sdf(molobj, energies, coords, costs)
+
+        yield energies, coords, costs
 
 
 def main():
@@ -157,6 +223,7 @@ def main():
     parser.add_argument('--sdf', nargs="+", type=str, help='SDF file', metavar='file')
 
     parser.add_argument('--txt', type=str, help='txt result file', metavar='file')
+    parser.add_argument('--readtxt', action="store_true", help='txt result file from stdin')
     parser.add_argument('--molidx', type=int, help='index in sdf for result', metavar='int')
 
     parser.add_argument('--debug', action="store_true")
@@ -165,6 +232,19 @@ def main():
 
     if "~" in args.sdf:
         args.sdf = correct_userpath(args.sdf)
+
+
+
+    if args.readtxt:
+
+        molobjs = cheminfo.read_sdffile(args.sdf[0])
+        molobjs = [m for m in molobjs]
+        results = get_txt(molobjs)
+
+        anatole_todo(results)
+
+        quit()
+
 
     if "~" in args.txt:
         args.txt = correct_userpath(args.txt)
