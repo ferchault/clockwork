@@ -38,7 +38,8 @@ def optmize_conformation(atoms, coord, filename=None):
 
     if filename is None:
 
-        filename = "_tmp_mopac_opt_"
+        pid = os.getpid()
+        filename = "_tmp_mopac_o_" + str(pid) + "_"
 
         # If slurm, then read/write to tmpdir
         tmpkey = "TMPDIR"
