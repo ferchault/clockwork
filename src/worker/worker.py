@@ -581,6 +581,8 @@ def calculate_mopac(molobj, conformer, torsions, origin_angles, delta_angles,
     coordinates = conformer_prime.GetPositions()
     coordinates = np.round(coordinates, coord_decimals) # rdkit hack, read description
 
+    smiles = ""
+
     try:
         energy, ocoordinates = quantum.optmize_conformation(atoms, coordinates)
         status = 0
@@ -588,12 +590,23 @@ def calculate_mopac(molobj, conformer, torsions, origin_angles, delta_angles,
 
         if reference_smiles is not None:
             new_smiles = quantum.get_smiles(atoms, coordinates)
+            smiles = new_smiles
 
             if new_smiles != reference_smiles:
                 status = 5
     except:
         energy = 0.0
         status = 4
+
+
+    # if status == 0:
+    #     atoms_str = [cheminfo.convert_atom(atom) for atom in atoms]
+    #     txt = rmsd.set_coordinates(atoms_str, coordinates, title="")
+    #     with open("_tmp_local_dump.xyz", 'a') as f:
+    #         f.write(txt)
+    #         f.write("\n")
+    #
+    # print(status, smiles)
 
     return energy, coordinates, status
 
@@ -761,10 +774,10 @@ def run_jobfile(molobjs, tordbs, filename, threads=0):
         lines = [line.strip() for line in lines]
 
     if threads > 0:
-        run_joblines_threads(origins, molobjs, tordbs, lines, threads=threads, dump=True)
+        run_joblines_threads(origins, molobjs, tordbs, lines, threads=threads, dump=False)
 
     else:
-        run_joblines(origins, molobjs, tordbs, lines, dump=True)
+        run_joblines(origins, molobjs, tordbs, lines, dump=False)
 
     return True
 
