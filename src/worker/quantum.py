@@ -3,9 +3,11 @@ import os
 import worker
 import merge
 import easyusage
+import rmsd
 
 from chemhelp import cheminfo
 from chemhelp.chemistry import mopac
+from chemhelp.chemistry import mndo
 from chemhelp import xyz2mol
 
 import rdkit.Chem as Chem
@@ -31,15 +33,22 @@ def get_smiles(atoms, coord):
     return smi
 
 
-def optmize_conformation(atoms, coord, filename=None):
+def optmize_conformation(atoms, coord, filename=None, use_shm=False):
     """
 
     """
+
+    dirshm = "/dev/shm/"
 
     if filename is None:
 
         pid = os.getpid()
         filename = "_tmp_mopac_o_" + str(pid) + "_"
+
+        # Didn't make a difference
+        if use_shm:
+            os.chdir(dirshm)
+            # filename = dirshm + filename
 
         # If slurm, then read/write to tmpdir
         tmpkey = "TMPDIR"
@@ -48,15 +57,20 @@ def optmize_conformation(atoms, coord, filename=None):
 
     parameters = {
         "method": "PM6",
-        "keywords": "precise"
+        "keywords": "precise",
+        # CYCLES=n
     }
 
-    properties = mopac.calculate(atoms, coord, parameters=parameters, write_only=False, label=filename)
+
+    # properties = mopac.calculate(atoms, coord, parameters=parameters, write_only=False, label=filename)
+    properties = mndo.calculate(atoms, coord, label=filename)
 
     oenergy = properties["h"]
     ocoord = properties["coord"]
 
     del properties
+
+    # TODO add remove mop outputs
 
     return oenergy, ocoord
 
