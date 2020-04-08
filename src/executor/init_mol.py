@@ -71,10 +71,12 @@ def find_heavy(xyzgeometry):
 
 molid = sys.argv[1]
 xyzgeometry = open(sys.argv[2]).read()
+sdfgeometry = open(sys.argv[3]).read()
 natoms, heavy, short_xyz = find_heavy(xyzgeometry)
 bonds = xtb_bonds(short_xyz)
 dihedrals = get_relevant_dihedrals(heavy, bonds, natoms)
 
 redis.set(f'clockwork:{molid}:xyz', short_xyz)
+redis.set(f'clockwork:{molid}:sdf', sdfgeometry)
 redis.set(f'clockwork:{molid}:dihedrals', json.dumps(dihedrals))
 redis.set(f'clockwork:{molid}:bonds', json.dumps(bonds))
