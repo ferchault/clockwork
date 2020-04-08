@@ -54,7 +54,7 @@ def get_relevant_dihedrals(heavy, bonds, natoms):
 						continue
 					if not ((l, k) in bonds or (k, l) in bonds):
 						continue
-					if (i not in heavy) and (l not in heavy):
+					if (j not in heavy) and (k not in heavy):
 						continue
 					if ((i, j, k, l) not in dihs):
 						dihs.append((l, k, j, i))
