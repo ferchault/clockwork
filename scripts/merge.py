@@ -28,6 +28,7 @@ Usage:
 import json
 import sys
 import os
+from functools import lru_cache
 
 import numpy as np
 import tqdm
@@ -40,11 +41,12 @@ from qml.representations import generate_fchl_acsf
 QML_FCHL_SIGMA = 2
 QML_FCHL_THRESHOLD = 0.98
 ENERGY_THRESHOLD = 1e-4
+WBO_THRESHOLD = 1e-2
 
 
 class Merger(object):
     def __init__(self, merge_into_file, workpackage_file):
-        self._read_merge_into_file(merge_into_file)
+        self._read_merge_into_file(merge_into_file, workpackage_file)
         self._init_caches()
         self._merge_workpackages(workpackage_file)
 
@@ -68,7 +70,7 @@ class Merger(object):
 
             # check for duplicates
             prescreened = self._find_compatible(geometry, energy, bond_orders)
-            if not self._is_duplicate(prescreened, coordinates):
+            if prescreened is True or not self._is_duplicate(prescreened, coordinates):
                 conformer = {'ene': energy, 'geo': list(coordinates.flatten()), 'wbo': bond_orders,
                              'dih': workpackage['dih'], 'res': workpackage['res']}
                 self._dataset['conformers'].append(conformer)
@@ -80,10 +82,12 @@ class Merger(object):
         compatible = []
         for confid in range(nconfs):
             if abs(self._dataset['conformers'][confid]['ene'] - energy) < ENERGY_THRESHOLD:
+                if (np.array(bond_orders) - np.array(self._dataset['conformers'][confid]['wbo'])).sum() > WBO_THRESHOLD:
+                    return True
                 compatible.append(confid)
-
         return compatible
 
+    @lru_cache()
     def _get_rep(self, confid):
         """ Lazily build representations for result conformers."""
         if confid not in self._rep_cache:
@@ -107,10 +111,23 @@ class Merger(object):
         self._rep_cache = {}
         self._charges = np.array([{'H': 1, 'C': 6, 'N': 7, 'O': 8}[_] for _ in self._dataset['charges']])
 
-    def _read_merge_into_file(self, merge_into_file):
+    def _init_database(self, workpackage_file):
+        self._dataset = {}
+        with open(workpackage_file) as fh:
+            workpackages = fh.readlines()
+        wp = json.loads(workpackages[0])
+        charges = [i for i in wp['geo'][0].split() if i.isalpha()]
+        self._dataset = {'molname': wp['mol'],
+                         'charges': ''.join(charges),
+                         'conformers': []}
+
+    def _read_merge_into_file(self, merge_into_file, workpackage_file):
         """ Parses JSON result file."""
-        with open(merge_into_file) as fh:
-            self._dataset = json.load(fh)
+        if os.path.isfile(merge_into_file):
+            with open(merge_into_file) as fh:
+                self._dataset = json.load(fh)
+        else:
+            self._init_database(workpackage_file)
 
         print(f"Read a database with {len(self._dataset['conformers'])} conformers")
 
@@ -118,12 +135,12 @@ class Merger(object):
         """ Dumps JSON result file."""
         with open(outputfile, 'w') as fh:
             json.dump(self._dataset, fh)
-
         print(f"Saved a database with {len(self._dataset['conformers'])} conformers")
 
 
 if __name__ == '__main__':
-    merge_into_file, workpackage_file = sys.argv[1:]
-
+    #merge_into_file, workpackage_file = sys.argv[1:]
+    merge_into_file = 'test.merged'
+    workpackage_file = '/Users/c0uch1/work/clockwork_data/ci-0001/batch2.prod'
     m = Merger(merge_into_file, workpackage_file)
-    m.save(f'{merge_into_file}.merged')
+    #m.save(f'{merge_into_file}.merged')
