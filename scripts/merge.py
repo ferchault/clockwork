@@ -41,85 +41,89 @@ QML_FCHL_SIGMA = 2
 QML_FCHL_THRESHOLD = 0.98
 ENERGY_THRESHOLD = 1e-4
 
+
 class Merger(object):
-	def __init__(self, merge_into_file, workpackage_file):
-		self._read_merge_into_file(merge_into_file)
-		self._init_caches()
-		self._merge_workpackages(workpackage_file)
-	
-	def _merge_workpackages(self, workpackage_file):
-		""" Read file with multiple workpackages."""
-		with open (workpackage_file) as fh:
-			workpackages = fh.readlines()
-		for wp in tqdm.tqdm(workpackages, desc="Merging workpackages"):
-			wp = json.loads(wp)
-			self._consume_workpackage(wp)
+    def __init__(self, merge_into_file, workpackage_file):
+        self._read_merge_into_file(merge_into_file)
+        self._init_caches()
+        self._merge_workpackages(workpackage_file)
 
-	def _consume_workpackage(self, workpackage):
-		""" Insert non-duplicates of the workpackage into the database."""
-		if workpackage['mol'] != self._dataset['molname']:
-			raise ValueError("Different molecules in the two files.")
-		
-		for geometry, energy, bond_orders in zip(workpackage['geo'], workpackage['ene'], workpackage['wbo']):
-			# convert string geometry
-			atomlines = geometry.split("\n")
-			coordinates = np.array([[float(__) for __ in _.split()[1:]] for _ in atomlines])
+    def _merge_workpackages(self, workpackage_file):
+        """ Read file with multiple workpackages."""
+        with open(workpackage_file) as fh:
+            workpackages = fh.readlines()
+        for wp in tqdm.tqdm(workpackages, desc="Merging workpackages"):
+            wp = json.loads(wp)
+            self._consume_workpackage(wp)
 
-			# check for duplicates
-			prescreened = self._find_compatible(geometry, energy, bond_orders)
-			if not self._is_duplicate(prescreened, coordinates):
-				conformer = {'ene': energy, 'geo': list(coordinates.flatten()), 'wbo': bond_orders, 'dih': workpackage['dih'], 'res': workpackage['res']}
-				self._dataset['conformers'].append(conformer)
+    def _consume_workpackage(self, workpackage):
+        """ Insert non-duplicates of the workpackage into the database."""
+        if workpackage['mol'] != self._dataset['molname']:
+            raise ValueError("Different molecules in the two files.")
 
-	def _find_compatible(self, geometry, energy, bond_orders):
-		""" Returns a list of potentially compatible conformers."""
-		nconfs = len(self._dataset['conformers'])
+        for geometry, energy, bond_orders in zip(workpackage['geo'], workpackage['ene'], workpackage['wbo']):
+            # convert string geometry
+            atomlines = geometry.split("\n")
+            coordinates = np.array([[float(__) for __ in _.split()[1:]] for _ in atomlines])
 
-		compatible = []
-		for confid in range(nconfs):
-			if abs(self._dataset['conformers'][confid]['ene'] - energy) < ENERGY_THRESHOLD:
-				compatible.append(confid)
+            # check for duplicates
+            prescreened = self._find_compatible(geometry, energy, bond_orders)
+            if not self._is_duplicate(prescreened, coordinates):
+                conformer = {'ene': energy, 'geo': list(coordinates.flatten()), 'wbo': bond_orders,
+                             'dih': workpackage['dih'], 'res': workpackage['res']}
+                self._dataset['conformers'].append(conformer)
 
-		return compatible
-	
-	def _get_rep(self, confid):
-		""" Lazily build representations for result conformers."""
-		if confid not in self._rep_cache:
-			coords = np.array(self._dataset['conformers'][confid]['geo']).reshape(-1, 3)
-			self._rep_cache[confid] = generate_fchl_acsf(self._charges, coords, pad=len(self._charges))
-		
-		return self._rep_cache[confid]			
+    def _find_compatible(self, geometry, energy, bond_orders):
+        """ Returns a list of potentially compatible conformers."""
+        nconfs = len(self._dataset['conformers'])
 
-	def _is_duplicate(self, haystack, needle):
-		""" Accurate, yet expensive comparison operation. Checks for equivalents of the geometry needle in the list of conformers haystack."""
-		rep = generate_fchl_acsf(self._charges, needle, pad=len(self._charges))
-		reps = [self._get_rep(confid) for confid in haystack]
-		if len(reps) == 0:
-			return False
-		sim = get_global_kernel(np.array([rep]), np.array(reps), np.array([self._charges]), np.array([list(self._charges)]*len(reps)), QML_FCHL_SIGMA)
-		return np.max(sim) > QML_FCHL_THRESHOLD
+        compatible = []
+        for confid in range(nconfs):
+            if abs(self._dataset['conformers'][confid]['ene'] - energy) < ENERGY_THRESHOLD:
+                compatible.append(confid)
 
-	def _init_caches(self):
-		""" Lazily builds caches of result conformers."""
-		self._rep_cache = {}
-		self._charges = np.array([{'H': 1, 'C': 6, 'N': 7, 'O': 8}[_] for _ in self._dataset['charges']])
+        return compatible
 
-	def _read_merge_into_file(self, merge_into_file):
-		""" Parses JSON result file."""
-		with open(merge_into_file) as fh:
-			self._dataset = json.load(fh)
-		
-		print (f"Read a database with {len(self._dataset['conformers'])} conformers")
-	
-	def save(self, outputfile):
-		""" Dumps JSON result file."""
-		with open(outputfile, 'w') as fh:
-			json.dump(self._dataset, fh)
-		
-		print (f"Saved a database with {len(self._dataset['conformers'])} conformers")
+    def _get_rep(self, confid):
+        """ Lazily build representations for result conformers."""
+        if confid not in self._rep_cache:
+            coords = np.array(self._dataset['conformers'][confid]['geo']).reshape(-1, 3)
+            self._rep_cache[confid] = generate_fchl_acsf(self._charges, coords, pad=len(self._charges))
+
+        return self._rep_cache[confid]
+
+    def _is_duplicate(self, haystack, needle):
+        """ Accurate, yet expensive comparison operation. Checks for equivalents of the geometry needle in the list of conformers haystack."""
+        rep = generate_fchl_acsf(self._charges, needle, pad=len(self._charges))
+        reps = [self._get_rep(confid) for confid in haystack]
+        if len(reps) == 0:
+            return False
+        sim = get_global_kernel(np.array([rep]), np.array(reps), np.array([self._charges]),
+                                np.array([list(self._charges)] * len(reps)), QML_FCHL_SIGMA)
+        return np.max(sim) > QML_FCHL_THRESHOLD
+
+    def _init_caches(self):
+        """ Lazily builds caches of result conformers."""
+        self._rep_cache = {}
+        self._charges = np.array([{'H': 1, 'C': 6, 'N': 7, 'O': 8}[_] for _ in self._dataset['charges']])
+
+    def _read_merge_into_file(self, merge_into_file):
+        """ Parses JSON result file."""
+        with open(merge_into_file) as fh:
+            self._dataset = json.load(fh)
+
+        print(f"Read a database with {len(self._dataset['conformers'])} conformers")
+
+    def save(self, outputfile):
+        """ Dumps JSON result file."""
+        with open(outputfile, 'w') as fh:
+            json.dump(self._dataset, fh)
+
+        print(f"Saved a database with {len(self._dataset['conformers'])} conformers")
+
 
 if __name__ == '__main__':
-	merge_into_file, workpackage_file = sys.argv[1:]
+    merge_into_file, workpackage_file = sys.argv[1:]
 
-	m = Merger(merge_into_file, workpackage_file)
-	m.save(f'{merge_into_file}.merged')
+    m = Merger(merge_into_file, workpackage_file)
+    m.save(f'{merge_into_file}.merged')
