@@ -28,7 +28,6 @@ Usage:
 import json
 import sys
 import os
-from functools import lru_cache
 
 import numpy as np
 import tqdm
@@ -41,7 +40,7 @@ from qml.representations import generate_fchl_acsf
 QML_FCHL_SIGMA = 2
 QML_FCHL_THRESHOLD = 0.98
 ENERGY_THRESHOLD = 1e-4
-WBO_THRESHOLD = 1e-2
+WBO_THRESHOLD = 5e-2  # TODO: this needs adjustments, sth between 1e-1 - 1e-2
 
 
 class Merger(object):
@@ -87,7 +86,6 @@ class Merger(object):
                 compatible.append(confid)
         return compatible
 
-    @lru_cache()
     def _get_rep(self, confid):
         """ Lazily build representations for result conformers."""
         if confid not in self._rep_cache:
@@ -112,7 +110,6 @@ class Merger(object):
         self._charges = np.array([{'H': 1, 'C': 6, 'N': 7, 'O': 8}[_] for _ in self._dataset['charges']])
 
     def _init_database(self, workpackage_file):
-        self._dataset = {}
         with open(workpackage_file) as fh:
             workpackages = fh.readlines()
         wp = json.loads(workpackages[0])
@@ -139,8 +136,7 @@ class Merger(object):
 
 
 if __name__ == '__main__':
-    #merge_into_file, workpackage_file = sys.argv[1:]
-    merge_into_file = 'test.merged'
-    workpackage_file = '/Users/c0uch1/work/clockwork_data/ci-0001/batch2.prod'
-    m = Merger(merge_into_file, workpackage_file)
-    #m.save(f'{merge_into_file}.merged')
+    merge_into_filename, workpackage_filename = sys.argv[1:]
+    m = Merger(merge_into_filename, workpackage_filename)
+    basename = os.path.basename(merge_into_filename).split('.')[0]
+    m.save(f'{basename}.merged')
