@@ -40,14 +40,26 @@ from qml.representations import generate_fchl_acsf
 QML_FCHL_SIGMA = 2
 QML_FCHL_THRESHOLD = 0.98
 ENERGY_THRESHOLD = 1e-4
-WBO_THRESHOLD = 5e-2  # TODO: this needs adjustments, sth between 1e-1 - 1e-2
+
+# (nbody, res), defined by costorder.py
+costorder = [(1, 0), (1, 1), (1, 2), (1, 3), (1, 4), (2, 0), (2, 1), (2, 2), (3, 0), (2, 3), (3, 1), (4, 0), (2, 4),
+             (3, 2), (5, 0), (4, 1), (6, 0), (3, 3), (5, 1), (4, 2), (3, 4), (6, 1), (4, 3), (5, 2), (4, 4), (6, 2),
+             (5, 3), (5, 4), (6, 3), (6, 4)]
 
 
 class Merger(object):
     def __init__(self, merge_into_file, workpackage_file):
+        self._check_workpackage_status(workpackage_file)
         self._read_merge_into_file(merge_into_file, workpackage_file)
         self._init_caches()
         self._merge_workpackages(workpackage_file)
+
+    def _check_workpackage_status(self, workpackage_file):
+        with open(workpackage_file) as fh:
+            workpackages = fh.readlines()
+        for line in workpackages:
+            if line.startswith('JOB:'):
+                raise ValueError('Workpackage is not finished yet.')
 
     def _merge_workpackages(self, workpackage_file):
         """ Read file with multiple workpackages."""
@@ -69,9 +81,14 @@ class Merger(object):
 
             # check for duplicates
             prescreened = self._find_compatible(geometry, energy, bond_orders)
-            if prescreened is True or not self._is_duplicate(prescreened, coordinates):
-                conformer = {'ene': energy, 'geo': list(coordinates.flatten()), 'wbo': bond_orders,
-                             'dih': workpackage['dih'], 'res': workpackage['res']}
+            if not self._is_duplicate(prescreened, coordinates):
+                dih = workpackage['dih']
+                res = workpackage['res']
+                conformer = {'ene': energy,
+                             'geo': list(coordinates.flatten()),
+                             'wbo': bond_orders,
+                             'dih': dih, 'res': res}
+                self._dataset['dihedral_occ'][str((len(dih), res))].append(dih)
                 self._dataset['conformers'].append(conformer)
 
     def _find_compatible(self, geometry, energy, bond_orders):
@@ -81,8 +98,6 @@ class Merger(object):
         compatible = []
         for confid in range(nconfs):
             if abs(self._dataset['conformers'][confid]['ene'] - energy) < ENERGY_THRESHOLD:
-                if (np.array(bond_orders) - np.array(self._dataset['conformers'][confid]['wbo'])).sum() > WBO_THRESHOLD:
-                    return True
                 compatible.append(confid)
         return compatible
 
@@ -116,7 +131,9 @@ class Merger(object):
         charges = [i for i in wp['geo'][0].split() if i.isalpha()]
         self._dataset = {'molname': wp['mol'],
                          'charges': ''.join(charges),
-                         'conformers': []}
+                         'conformers': [],
+                         'dihedral_occ': {str(k): [] for k in costorder},
+                         'wbo': []}
 
     def _read_merge_into_file(self, merge_into_file, workpackage_file):
         """ Parses JSON result file."""
