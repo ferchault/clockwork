@@ -127,7 +127,13 @@ class Merger(object):
     def _init_database(self, workpackage_file):
         with open(workpackage_file) as fh:
             workpackages = fh.readlines()
-        wp = json.loads(workpackages[0])
+        for workpackage in workpackages:
+            # Sometime workpackages are empty/have failed and we need to iterate until we get a successfull one
+            wp = json.loads(workpackage)
+            if wp['geo']:
+                break
+            else:
+                continue
         charges = [i for i in wp['geo'][0].split() if i.isalpha()]
         self._dataset = {'molname': wp['mol'],
                          'charges': ''.join(charges),
