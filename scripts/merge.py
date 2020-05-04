@@ -138,8 +138,7 @@ class Merger(object):
         self._dataset = {'molname': wp['mol'],
                          'charges': ''.join(charges),
                          'conformers': [],
-                         'dihedral_occ': {str(k): [] for k in costorder},
-                         'wbo': []}
+                         'dihedral_occ': {str(k): [] for k in costorder}}
 
     def _read_merge_into_file(self, merge_into_file, workpackage_file):
         """ Parses JSON result file."""
