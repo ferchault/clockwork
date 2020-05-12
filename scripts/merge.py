@@ -74,24 +74,45 @@ class Merger(object):
         if workpackage['mol'] != self._dataset['molname']:
             raise ValueError("Different molecules in the two files.")
 
+        contrib = False  # only switches to True if a new conformer is found
         for geometry, energy, bond_orders in zip(workpackage['geo'], workpackage['ene'], workpackage['wbo']):
             # convert string geometry
             atomlines = geometry.split("\n")
             coordinates = np.array([[float(__) for __ in _.split()[1:]] for _ in atomlines])
+            dih = workpackage['dih']
+            res = workpackage['res']
 
             # check for duplicates
-            prescreened = self._find_compatible(geometry, energy, bond_orders)
-            if not self._is_duplicate(prescreened, coordinates):
-                dih = workpackage['dih']
-                res = workpackage['res']
+            prescreened = self._find_compatible(energy)
+            similarity = self._is_duplicate(prescreened, coordinates)
+            if not np.max(similarity) > QML_FCHL_THRESHOLD or similarity is False:
                 conformer = {'ene': energy,
                              'geo': list(coordinates.flatten()),
                              'wbo': bond_orders,
-                             'dih': dih, 'res': res}
-                self._dataset['dihedral_occ'][str((len(dih), res))].append(dih)
+                             'dih': dih, 'res': res,
+                             'same_conf': []}
+                self._dataset['conf_contrib'][str((len(dih), res))].append(dih)
                 self._dataset['conformers'].append(conformer)
+                contrib = True
+            else:
+                if similarity is not False:
+                    sim_idx = np.where(similarity > QML_FCHL_THRESHOLD)[0]
+                    for sidx in sim_idx:
+                        self._dataset['conformers'][sidx]['same_conf'].append([len(dih), res, dih])
+        self._calc_statistics(workpackage['dih'], contrib=contrib)
 
-    def _find_compatible(self, geometry, energy, bond_orders):
+    def _calc_statistics(self, dihedrals, contrib=False):
+        for dihedral in dihedrals:
+            dihedral = str(dihedral)
+            if dihedral not in self._dataset['dihed_calcs'].keys() or dihedral not in self._dataset['last_dihed_contrib'].keys():
+                self._dataset['dihed_calcs'][str(dihedral)] = 1
+                self._dataset['last_dihed_contrib'][dihedral] = 1
+            else:
+                self._dataset['dihed_calcs'][str(dihedral)] += 1
+                self._dataset['last_dihed_contrib'][dihedral] += 1 if not contrib else - self._dataset['last_dihed_contrib'][dihedral]
+        self._dataset['total_calcs'] += 1
+
+    def _find_compatible(self, energy):
         """ Returns a list of potentially compatible conformers."""
         nconfs = len(self._dataset['conformers'])
 
@@ -117,7 +138,7 @@ class Merger(object):
             return False
         sim = get_global_kernel(np.array([rep]), np.array(reps), np.array([self._charges]),
                                 np.array([list(self._charges)] * len(reps)), QML_FCHL_SIGMA)
-        return np.max(sim) > QML_FCHL_THRESHOLD
+        return sim
 
     def _init_caches(self):
         """ Lazily builds caches of result conformers."""
@@ -138,7 +159,10 @@ class Merger(object):
         self._dataset = {'molname': wp['mol'],
                          'charges': ''.join(charges),
                          'conformers': [],
-                         'dihedral_occ': {str(k): [] for k in costorder}}
+                         'conf_contrib': {str(k): [] for k in costorder},
+                         'total_calcs': 0,
+                         'last_dihed_contrib': {},
+                         'dihed_calcs': {}}
 
     def _read_merge_into_file(self, merge_into_file, workpackage_file):
         """ Parses JSON result file."""
@@ -160,5 +184,4 @@ class Merger(object):
 if __name__ == '__main__':
     merge_into_filename, workpackage_filename = sys.argv[1:]
     m = Merger(merge_into_filename, workpackage_filename)
-    basename = os.path.basename(merge_into_filename).split('.')[0]
-    m.save(f'{basename}.merged')
+    m.save(merge_into_filename)
