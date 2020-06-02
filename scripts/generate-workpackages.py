@@ -10,4 +10,4 @@ nbody = int(nbody[1:])
 
 # output
 for wp in it.combinations(dihs, nbody):
-	print ("molname:" + '-'.join(wp) + ":" + resolution) 
+	print (f"{molname}:" + '-'.join(wp) + ":" + resolution) 

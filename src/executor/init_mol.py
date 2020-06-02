@@ -1,40 +1,39 @@
 #!/usr/bin/env python
 from redis import Redis
+from rdkit import Chem
 import uuid
 import sys
 import os
 import subprocess 
 import shutil 
 import json
+import xyz2mol
 
 redis = Redis.from_url("redis://" + os.environ.get("EXECUTOR_CONSTR", "127.0.0.1:6379/0"))
 
-def xtb_bonds(xyzgeometry):
-	_tmpdir = "/run/shm/" + str(uuid.uuid4())
-	os.makedirs(_tmpdir)
-	os.chdir(_tmpdir)
-
-	with open("run.xyz", "w") as fh:
-		fh.write(xyzgeometry)
-
-	# call xtb
-	with open("run.log", "w") as fh:
-		subprocess.run(["/mnt/c/Users/guido/opt/xtb/6.2.2/bin/xtb", "run.xyz", "--wbo"], stdout=fh, stderr=fh)
-
-	# read bonds
-	with open("wbo") as fh:
-		lines = fh.readlines()
-	bonds = []
-	for line in lines:
+def get_bonds_smiles(xyzgeometry):
+	atoms = []
+	coords = []
+	lines = xyzgeometry.split("\n")
+	natoms = int(lines[0])
+	for line in lines[2:natoms+2]:
 		parts = line.strip().split()
-		parts = parts[:2]
-		parts = [int(_)-1 for _ in parts]
-		parts = (min(parts), max(parts))
-		bonds.append(parts)
+		atoms.append(xyz2mol.int_atom(parts[0]))
+		coords.append((float(parts[1]), float(parts[2]), float(parts[3])))
+	
+	mol = xyz2mol.xyz2mol(atoms, coords, charge=0)
+	bonds = []
+	for bond in mol.GetBonds():
+		a, b = bond.GetEndAtomIdx(), bond.GetBeginAtomIdx()
+		a, b = min(a, b), max(a, b)
+		bonds.append((a, b))
+	
+	# canonicalize
+	smiles = Chem.MolToSmiles(mol)
+	m = Chem.MolFromSmiles(smiles)
+	smiles = Chem.MolToSmiles(m)
 
-	os.chdir("..")
-	shutil.rmtree(_tmpdir)
-	return bonds
+	return bonds, smiles
 
 def get_relevant_dihedrals(heavy, bonds, natoms):
 	dihs = []
@@ -73,10 +72,11 @@ molid = sys.argv[1]
 xyzgeometry = open(sys.argv[2]).read()
 sdfgeometry = open(sys.argv[3]).read()
 natoms, heavy, short_xyz = find_heavy(xyzgeometry)
-bonds = xtb_bonds(short_xyz)
+bonds, smiles = get_bonds_smiles(short_xyz)
 dihedrals = get_relevant_dihedrals(heavy, bonds, natoms)
 
 redis.set(f'clockwork:{molid}:xyz', short_xyz)
 redis.set(f'clockwork:{molid}:sdf', sdfgeometry)
 redis.set(f'clockwork:{molid}:dihedrals', json.dumps(dihedrals))
 redis.set(f'clockwork:{molid}:bonds', json.dumps(bonds))
+redis.set(f'clockwork:{molid}:smiles', smiles)
