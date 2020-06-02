@@ -75,7 +75,7 @@ class Merger(object):
             raise ValueError("Different molecules in the two files.")
 
         contrib = False  # only switches to True if a new conformer is found
-        for geometry, energy, bond_orders in zip(workpackage['geo'], workpackage['ene'], workpackage['wbo']):
+        for geometry, energy in zip(workpackage['geo'], workpackage['ene']):
             # convert string geometry
             atomlines = geometry.split("\n")
             coordinates = np.array([[float(__) for __ in _.split()[1:]] for _ in atomlines])
@@ -88,7 +88,6 @@ class Merger(object):
             if not np.max(similarity) > QML_FCHL_THRESHOLD or similarity is False:
                 conformer = {'ene': energy,
                              'geo': list(coordinates.flatten()),
-                             'wbo': bond_orders,
                              'dih': dih, 'res': res,
                              'same_conf': []}
                 self._dataset['conf_contrib'][str((len(dih), res))].append(dih)
