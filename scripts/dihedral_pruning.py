@@ -130,7 +130,8 @@ def calculate_pruning_cost(merge_info):
                 conf_counter -= 1
 
         # Calculate the saved cost when this dihedral wouldn't have had existed
-        cost_count -= (cost_saved(merge_info['mols'][mname]['n_diheds'], last_wp) - cost_saved(merge_info['mols'][mname]['n_diheds'] - 1, last_wp))
+        cost_count -= (cost_saved(merge_info['mols'][mname]['n_diheds'], last_wp) - cost_saved(
+            merge_info['mols'][mname]['n_diheds'] - 1, last_wp))
         merge_info['mols'][mname]['n_diheds'] -= 1
         total_ndiheds -= 1
 
@@ -194,15 +195,18 @@ def plotting(data, outpath, norm=False):
 
 if __name__ == '__main__':
     import argparse
+
     parser = argparse.ArgumentParser()
-    parser.add_argument('--mergepath', action='store', help='', metavar="dir")
-    parser.add_argument('--outpath', action='store_true', help='')
-    parser.add_argument('--cutoff', action='store', help='')
+    parser.add_argument('--mergepath', type=str, help='Path to the merged conformer files.')
+    parser.add_argument('--outpath', type=str, help='Output path to store merge and pruning data.')
+    parser.add_argument('--cutoff', type=int, help='Dihedral pruning cutoff. '
+                                                   'Number of computations performed since last new conformer.')
     args = parser.parse_args()
 
     os.makedirs(args.outpath, exist_ok=True)
 
     if os.path.isfile(f'{args.outpath}/merge_data.pkl'):
+        print('Merge info already exists. Load data instead of recomputing.')
         m_info = pickle.load(open(f'{args.outpath}/merge_data.pkl', 'rb'))
     else:
         m_files = sorted(glob.glob(f'{args.mergepath}/*.merged'))
@@ -210,11 +214,12 @@ if __name__ == '__main__':
         pickle.dump(m_info, open(f'{args.outpath}/merge_data.pkl', 'wb'))
 
     if os.path.isfile(f'{args.outpath}/prune_data.pkl'):
+        print('Pruning info already exists. Load data instead of recomputing.')
         p_info = pickle.load(open(f'{args.outpath}/prune_data.pkl', 'rb'))
     else:
         p_info = calculate_pruning_cost(m_info)
-        pickle.dump(m_info, open(f'{args.outpath}/prune_data.pkl', 'wb'))
+        pickle.dump(p_info, open(f'{args.outpath}/prune_data.pkl', 'wb'))
 
     p_list = pruning_list(p_info, args.cutoff)
-    pickle.dump(m_info, open(f'{args.outpath}/pruned_dihedrals_cutoff-{args.cutoff}.pkl', 'wb'))
+    pickle.dump(m_info, open(f'{args.outpath}/pruned_dihedrals_cutoff-{int(args.cutoff)}.pkl', 'wb'))
     plotting(p_info, args.outpath, norm=True)
