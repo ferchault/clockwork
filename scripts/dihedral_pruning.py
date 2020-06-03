@@ -144,19 +144,26 @@ def calculate_pruning_cost(merge_info):
     return prune_data
 
 
-def pruning_list(prune_data, cutoff):
+def pruning_list(prune_data, cutoff, outpath=None):
+    idx = np.where(np.array(prune_data['nconfs']) / max(prune_data['nconfs']) >= cutoff)[0][-1]
+    print(f'Conformer cutoff {cutoff} found at {prune_data["ldc"][idx]} computations.')
+    print(f'This prunes {idx} dihedrals ({idx/max(prune_data["ndiheds"])}%).')
+
     molecule_list = {}
-    for i in range(len(prune_data['ldc'])):
-        if prune_data['ldc'][i] <= cutoff:
-            break
-        dih, mname = prune_data['dihedrals'][i]
+    for dih, mname in prune_data['dihedrals'][:idx]:
         if mname not in molecule_list.keys():
             molecule_list[mname] = []
         molecule_list[mname].append(dih)
+
+    if outpath is not None:
+        for mol in molecule_list:
+            molecule_list[mol].sort(key=int)
+            with open(f'{outpath}/{mol}.dih', 'w') as outfile:
+                outfile.write('-'.join(molecule_list[mol]))
     return molecule_list
 
 
-def plotting(data, outpath, norm=False):
+def plotting(data, outpath=None, norm=False):
     nconfs = data['nconfs']
     ndiheds = data['ndiheds']
     ncost = data['cost']
@@ -188,8 +195,19 @@ def plotting(data, outpath, norm=False):
     ax02.tick_params(axis='y', labelcolor=color)
     ax12.tick_params(axis='y', labelcolor=color)
 
+    # TODO: Maybe an inset would be cool?
+    # from mpl_toolkits.axes_grid1.inset_locator import zoomed_inset_axes
+    # axins = zoomed_inset_axes(axs[1], 2.5, loc=1)
+    # axins.plot(data['ldc'][1330:1894], nconfs[1330:1894], color='tab:red')
+    # x1, x2, y1, y2 = 55000, 70000, 0.96, 1.0  # specify the limits
+    # axins.set_xlim(x1, x2)  # apply the x-limits
+    # axins.set_ylim(y1, y2)  # apply the y-limits
+    # from mpl_toolkits.axes_grid1.inset_locator import mark_inset
+    # mark_inset(axs[1], axins, loc1=2, loc2=4, fc="none", ec="0.5")
+
     fig.tight_layout()  # otherwise the right y-label is slightly clipped
-    plt.savefig(f'{outpath}/cost_overview.png', dpi=300)
+    if outpath is not None:
+        plt.savefig(f'{outpath}/cost_overview.png', dpi=300)
     plt.show()
 
 
@@ -221,5 +239,5 @@ if __name__ == '__main__':
         pickle.dump(p_info, open(f'{args.outpath}/prune_data.pkl', 'wb'))
 
     p_list = pruning_list(p_info, args.cutoff)
-    pickle.dump(m_info, open(f'{args.outpath}/pruned_dihedrals_cutoff-{int(args.cutoff)}.pkl', 'wb'))
+    pickle.dump(p_list, open(f'{args.outpath}/pruned_dihedrals_cutoff-{int(args.cutoff)}.pkl', 'wb'))
     plotting(p_info, args.outpath, norm=True)
