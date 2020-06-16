@@ -9,8 +9,17 @@ from tqdm import tqdm
 import matplotlib.pyplot as plt
 import scipy.special as scs
 
-wp_list = [(1, 0), (1, 1), (1, 2), (1, 3), (1, 4), (2, 0), (2, 1), (2, 2), (3, 0), (2, 3), (3, 1), (4, 0), (2, 4),
-           (3, 2), (5, 0), (4, 1)]
+wp_list = [(1, 0), (1, 1), (1, 2), (1, 3), (1, 4), (2, 0), (2, 1), (2, 2), (3, 0),  # Batch 1
+           (2, 3), (3, 1), (4, 0), (2, 4), (3, 2),                                  # Batch 2
+           (5, 0), (4, 1)]                                                          # Batch 3
+
+last_batch_wp_idx = {1: 9,
+                     2: 14,
+                     3: 16}
+
+batch_definition = {2: {(1, 0), (1, 1), (1, 2), (1, 3), (1, 4), (2, 0), (2, 1), (2, 2), (3, 0),
+                       (2, 3), (3, 1), (4, 0), (2, 4), (3, 2)},
+                    3: {(5, 0), (4, 1)}}
 
 
 def configuration_count(resolution):
@@ -34,9 +43,11 @@ def group_cost(combinations):
     return cost
 
 
-def cost_saved(n_diheds_, start_wp_idx):
+def cost_saved(n_diheds_, start_wp_idx, end_wp=len(wp_list)):
     cost_saved = 0
     for j in range(start_wp_idx, len(wp_list)):
+        if j == end_wp:
+            break
         nbody, res = wp_list[j]
         cost_saved += scs.binom(n_diheds_, nbody) * group_cost(combinations_in_group(nbody, res))
     return cost_saved * 0.2 / 60 / 60  # 0.2s per calculations scaled to hours
@@ -52,16 +63,17 @@ def get_last_wp(mol, dihed):
     return idx[-1]  # returns the highest number, so the last workpackage it was relevant
 
 
-def load_merge_data(merge_files):
+def load_merge_data(merge_files, batch_num):
     merge_info = {'ldc': [],
                   'nconfs': 0,
+                  'ntotal': 0,
                   'mols': {}}
 
     for mfile in tqdm(merge_files):
         with open(mfile) as infile:
             m = json.load(infile)
 
-        merge_info['nconfs'] += len(m['conformers'])
+        merge_info['ntotal'] += len(m['conformers'])
 
         for d in m['last_dihed_contrib'].keys():
             merge_info['ldc'].append([m['last_dihed_contrib'][d], d, m['molname']])
@@ -71,25 +83,38 @@ def load_merge_data(merge_files):
                                             'duplicates': []}
 
         for conf in m['conformers']:
+            wp_def = (len(conf['dih']), conf['res'])
+            if wp_def not in batch_definition[batch_num]:
+                continue
+
+            merge_info['nconfs'] += 1
+
             # Create a list of all duplicate configurations
             duplicates = [(dupl[0], dupl[1], tuple(dupl[2])) for dupl in conf['same_conf']]
             # Don't forget to append the first/original one
-            duplicates.append((1, conf['res'], tuple(conf['dih'])))
+            duplicates.append((len(conf['dih']), conf['res'], tuple(conf['dih'])))
             # Make it a set for faster comparison
             merge_info['mols'][m['molname']]['duplicates'].append(set(duplicates))
 
     return merge_info
 
 
-def calculate_pruning_cost(merge_info):
+def calculate_pruning_cost(merge_info, batch_num, prune_file):
     # Sort last dihedral contribution (ldc) in descending order
     last_contribs_idx = np.argsort(-np.array(merge_info['ldc'])[:, 0].astype(float))
     ldc = np.array(merge_info['ldc'])[last_contribs_idx]
 
+    batch_last_wp = last_batch_wp_idx[batch_num]
+
     total_cost = 0
     for mname in merge_info['mols']:
         # Calculate total CPU cost so far
-        total_cost += cost_saved(merge_info['mols'][mname]['n_diheds'], 0)
+        n_diheds = merge_info['mols'][mname]['n_diheds']
+        total_cost += cost_saved(n_diheds, 0, end_wp=last_batch_wp_idx[2])
+        if prune_file and mname in prune_file:
+            n_pruned_diheds = len(prune_file[mname])
+            merge_info['mols'][mname]['n_diheds'] -= n_pruned_diheds
+        total_cost += cost_saved(merge_info['mols'][mname]['n_diheds'], last_batch_wp_idx[2], end_wp=last_batch_wp_idx[3])
 
     prune_data = {'cost': [],
                   'ndiheds': [],
@@ -103,8 +128,11 @@ def calculate_pruning_cost(merge_info):
     for i in tqdm(range(len(ldc))):
         # last contribution, dihedral ID, molecule name
         lc, dih, mname = ldc[i]
-        last_wp = 0
 
+        if mname in prune_file and str(dih) in prune_file[mname]:
+            continue
+
+        last_wp = 0
         # Loop over all conformers of a molecule
         for conf in merge_info['mols'][mname]['duplicates']:
             discard_list = []
@@ -130,8 +158,8 @@ def calculate_pruning_cost(merge_info):
                 conf_counter -= 1
 
         # Calculate the saved cost when this dihedral wouldn't have had existed
-        cost_count -= (cost_saved(merge_info['mols'][mname]['n_diheds'], last_wp) - cost_saved(
-            merge_info['mols'][mname]['n_diheds'] - 1, last_wp))
+        cost_count -= (cost_saved(merge_info['mols'][mname]['n_diheds'], last_wp, end_wp=batch_last_wp) -
+                       cost_saved(merge_info['mols'][mname]['n_diheds'] - 1, last_wp, end_wp=batch_last_wp))
         merge_info['mols'][mname]['n_diheds'] -= 1
         total_ndiheds -= 1
 
@@ -146,21 +174,30 @@ def calculate_pruning_cost(merge_info):
 
 def pruning_list(prune_data, cutoff, outpath=None):
     idx = np.where(np.array(prune_data['nconfs']) / max(prune_data['nconfs']) >= cutoff)[0][-1]
-    print(f'Conformer cutoff {cutoff} found at {prune_data["ldc"][idx]} computations.')
-    print(f'This prunes {idx} dihedrals ({idx/max(prune_data["ndiheds"])}%).')
+    total_diheds = max(prune_data["ndiheds"])
+    diheds_pruned = total_diheds - prune_data["ndiheds"][idx]
+    print(f'Conformer cutoff {cutoff} found at {prune_data["ldc"][idx]} computations. IDX {idx}')
+    print(f'This prunes {diheds_pruned} dihedrals ({(diheds_pruned/total_diheds)*100:.02f}%).')
 
-    molecule_list = {}
+    keep_list = {}
+    for dih, mname in prune_data['dihedrals'][idx:]:
+        if mname not in keep_list.keys():
+            keep_list[mname] = []
+        keep_list[mname].append(dih)
+
+    prune_list = {}
     for dih, mname in prune_data['dihedrals'][:idx]:
-        if mname not in molecule_list.keys():
-            molecule_list[mname] = []
-        molecule_list[mname].append(dih)
+        if mname not in prune_list.keys():
+            prune_list[mname] = []
+        prune_list[mname].append(dih)
 
     if outpath is not None:
-        for mol in molecule_list:
-            molecule_list[mol].sort(key=int)
+        os.makedirs(outpath, exist_ok=True)
+        for mol in keep_list:
+            keep_list[mol].sort(key=int)
             with open(f'{outpath}/{mol}.dih', 'w') as outfile:
-                outfile.write('-'.join(molecule_list[mol]))
-    return molecule_list
+                outfile.write('-'.join(keep_list[mol]))
+    return keep_list, prune_list
 
 
 def plotting(data, outpath=None, norm=False):
@@ -195,19 +232,9 @@ def plotting(data, outpath=None, norm=False):
     ax02.tick_params(axis='y', labelcolor=color)
     ax12.tick_params(axis='y', labelcolor=color)
 
-    # TODO: Maybe an inset would be cool?
-    # from mpl_toolkits.axes_grid1.inset_locator import zoomed_inset_axes
-    # axins = zoomed_inset_axes(axs[1], 2.5, loc=1)
-    # axins.plot(data['ldc'][1330:1894], nconfs[1330:1894], color='tab:red')
-    # x1, x2, y1, y2 = 55000, 70000, 0.96, 1.0  # specify the limits
-    # axins.set_xlim(x1, x2)  # apply the x-limits
-    # axins.set_ylim(y1, y2)  # apply the y-limits
-    # from mpl_toolkits.axes_grid1.inset_locator import mark_inset
-    # mark_inset(axs[1], axins, loc1=2, loc2=4, fc="none", ec="0.5")
-
     fig.tight_layout()  # otherwise the right y-label is slightly clipped
     if outpath is not None:
-        plt.savefig(f'{outpath}/cost_overview.png', dpi=300)
+        plt.savefig(f'{outpath}/cost_overview_norm-{norm}.png', dpi=300)
     plt.show()
 
 
@@ -219,6 +246,9 @@ if __name__ == '__main__':
     parser.add_argument('--outpath', type=str, help='Output path to store merge and pruning data.')
     parser.add_argument('--cutoff', type=int, help='Dihedral pruning cutoff. '
                                                    'Number of computations performed since last new conformer.')
+    parser.add_argument('--batch', type=int, help='')
+    parser.add_argument('--past_prune', type=str, help='')
+
     args = parser.parse_args()
 
     os.makedirs(args.outpath, exist_ok=True)
@@ -228,16 +258,18 @@ if __name__ == '__main__':
         m_info = pickle.load(open(f'{args.outpath}/merge_data.pkl', 'rb'))
     else:
         m_files = sorted(glob.glob(f'{args.mergepath}/*.merged'))
-        m_info = load_merge_data(m_files)
+        m_info = load_merge_data(m_files, batch_num=args.batch)
         pickle.dump(m_info, open(f'{args.outpath}/merge_data.pkl', 'wb'))
 
     if os.path.isfile(f'{args.outpath}/prune_data.pkl'):
         print('Pruning info already exists. Load data instead of recomputing.')
         p_info = pickle.load(open(f'{args.outpath}/prune_data.pkl', 'rb'))
     else:
-        p_info = calculate_pruning_cost(m_info)
+        past_prune = pickle.load(open(args.past_prune, 'rb'))
+        p_info = calculate_pruning_cost(m_info, args.batch, past_prune)
         pickle.dump(p_info, open(f'{args.outpath}/prune_data.pkl', 'wb'))
 
-    p_list = pruning_list(p_info, args.cutoff)
-    pickle.dump(p_list, open(f'{args.outpath}/pruned_dihedrals_cutoff-{int(args.cutoff)}.pkl', 'wb'))
-    plotting(p_info, args.outpath, norm=True)
+    keep_dih_list, prune_dih_list = pruning_list(p_info, args.cutoff, outpath=f'{args.outpath}/keep_dihedrals')
+    pickle.dump(keep_dih_list, open(f'{args.outpath}/keep_dihedrals_cutoff-{int(args.cutoff)}.pkl', 'wb'))
+    pickle.dump(prune_dih_list, open(f'{args.outpath}/pruned_dihedrals_cutoff-{int(args.cutoff)}.pkl', 'wb'))
+    plotting(p_info, '.', norm=False)
