@@ -13,7 +13,7 @@ wp_list = [(1, 0), (1, 1), (1, 2), (1, 3), (1, 4), (2, 0), (2, 1), (2, 2), (3, 0
            (2, 3), (3, 1), (4, 0), (2, 4), (3, 2),                                  # Batch 2
            (5, 0), (4, 1)]                                                          # Batch 3
 
-last_batch_wp_idx = {1: 9,
+last_batch_wp_idx = {1: 0,
                      2: 14,
                      3: 16}
 
@@ -109,12 +109,11 @@ def calculate_pruning_cost(merge_info, batch_num, prune_file):
     total_cost = 0
     for mname in merge_info['mols']:
         # Calculate total CPU cost so far
-        n_diheds = merge_info['mols'][mname]['n_diheds']
-        total_cost += cost_saved(n_diheds, 0, end_wp=last_batch_wp_idx[2])
         if prune_file and mname in prune_file:
             n_pruned_diheds = len(prune_file[mname])
             merge_info['mols'][mname]['n_diheds'] -= n_pruned_diheds
-        total_cost += cost_saved(merge_info['mols'][mname]['n_diheds'], last_batch_wp_idx[2], end_wp=last_batch_wp_idx[3])
+        total_cost += cost_saved(merge_info['mols'][mname]['n_diheds'],
+                                 last_batch_wp_idx[batch_num-1], end_wp=last_batch_wp_idx[batch_num])
 
     prune_data = {'cost': [],
                   'ndiheds': [],
@@ -129,7 +128,7 @@ def calculate_pruning_cost(merge_info, batch_num, prune_file):
         # last contribution, dihedral ID, molecule name
         lc, dih, mname = ldc[i]
 
-        if mname in prune_file and str(dih) in prune_file[mname]:
+        if prune_file and mname in prune_file and str(dih) in prune_file[mname]:
             continue
 
         last_wp = 0
@@ -172,10 +171,16 @@ def calculate_pruning_cost(merge_info, batch_num, prune_file):
     return prune_data
 
 
-def pruning_list(prune_data, cutoff, outpath=None):
-    idx = np.where(np.array(prune_data['nconfs']) / max(prune_data['nconfs']) >= cutoff)[0][-1]
+def pruning_list(prune_data, cutoff, batch_num, outpath=None, ntotal=None):
+    if batch_num <= 2:
+        idx = np.where(np.array(prune_data['nconfs']) / max(prune_data['nconfs']) >= cutoff)[0][-1]
+    else:
+        conf_cut = round(ntotal*(1.-cutoff))
+        idx = np.where(np.array(prune_data['nconfs']) >= max(prune_data['nconfs'])-conf_cut)[0][-1]
+
     total_diheds = max(prune_data["ndiheds"])
     diheds_pruned = total_diheds - prune_data["ndiheds"][idx]
+
     print(f'Conformer cutoff {cutoff} found at {prune_data["ldc"][idx]} computations. IDX {idx}')
     print(f'This prunes {diheds_pruned} dihedrals ({(diheds_pruned/total_diheds)*100:.02f}%).')
 
@@ -247,7 +252,7 @@ if __name__ == '__main__':
     parser.add_argument('--cutoff', type=int, help='Dihedral pruning cutoff. '
                                                    'Number of computations performed since last new conformer.')
     parser.add_argument('--batch', type=int, help='')
-    parser.add_argument('--past_prune', type=str, help='')
+    parser.add_argument('--past_prune', type=str, help='', default=False)
 
     args = parser.parse_args()
 
@@ -265,11 +270,14 @@ if __name__ == '__main__':
         print('Pruning info already exists. Load data instead of recomputing.')
         p_info = pickle.load(open(f'{args.outpath}/prune_data.pkl', 'rb'))
     else:
-        past_prune = pickle.load(open(args.past_prune, 'rb'))
+        past_prune = pickle.load(open(args.past_prune, 'rb')) if args.past_prune else False
         p_info = calculate_pruning_cost(m_info, args.batch, past_prune)
         pickle.dump(p_info, open(f'{args.outpath}/prune_data.pkl', 'wb'))
 
-    keep_dih_list, prune_dih_list = pruning_list(p_info, args.cutoff, outpath=f'{args.outpath}/keep_dihedrals')
-    pickle.dump(keep_dih_list, open(f'{args.outpath}/keep_dihedrals_cutoff-{int(args.cutoff)}.pkl', 'wb'))
-    pickle.dump(prune_dih_list, open(f'{args.outpath}/pruned_dihedrals_cutoff-{int(args.cutoff)}.pkl', 'wb'))
-    plotting(p_info, '.', norm=False)
+    keep_dih_list, prune_dih_list = pruning_list(p_info, args.cutoff,
+                                                 outpath=f'{args.outpath}/keep_dihedrals',
+                                                 batch_num=args.batch,
+                                                 ntotal=m_info['ntotal'])
+    pickle.dump(keep_dih_list, open(f'{args.outpath}/keep_dihedrals_cutoff-{args.cutoff}.pkl', 'wb'))
+    pickle.dump(prune_dih_list, open(f'{args.outpath}/pruned_dihedrals_cutoff-{args.cutoff}.pkl', 'wb'))
+    plotting(p_info, args.outpath, norm=True)
