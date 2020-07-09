@@ -12,17 +12,20 @@ import scipy.special as scs
 wp_list = [(1, 0), (1, 1), (1, 2), (1, 3), (1, 4), (2, 0), (2, 1), (2, 2), (3, 0),  # Batch 1
            (2, 3), (3, 1), (4, 0), (2, 4), (3, 2),                                  # Batch 2
            (5, 0), (4, 1),                                                          # Batch 3
-           (3, 3), (4, 2)]                                                          # Batch 4
+           (3, 3), (4, 2),                                                          # Batch 4
+           (5, 1), (3, 4)]                                                          # Batch 5
 
 last_batch_wp_idx = {1: 0,
                      2: 14,
                      3: 16,
-                     4: 18}
+                     4: 18,
+                     5: 20}
 
 batch_definition = {2: {(1, 0), (1, 1), (1, 2), (1, 3), (1, 4), (2, 0), (2, 1), (2, 2), (3, 0),
                        (2, 3), (3, 1), (4, 0), (2, 4), (3, 2)},
                     3: {(5, 0), (4, 1)},
-                    4: {(3, 3), (4, 2)}}
+                    4: {(3, 3), (4, 2)},
+                    5: {(5, 1), (3, 4)}}
 
 
 def configuration_count(resolution):
@@ -277,6 +280,8 @@ if __name__ == '__main__':
         p_info = calculate_pruning_cost(m_info, args.batch, past_prune)
         pickle.dump(p_info, open(f'{args.outpath}/prune_data.pkl', 'wb'))
 
+    print(f'Newly found conformers: {max(p_info["nconfs"])}')
+    print(f'Total amount of conformers: {m_info["ntotal"]}')
     keep_dih_list, prune_dih_list = pruning_list(p_info, args.cutoff,
                                                  outpath=f'{args.outpath}/keep_dihedrals',
                                                  batch_num=args.batch,
