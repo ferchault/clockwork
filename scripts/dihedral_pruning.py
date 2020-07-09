@@ -252,7 +252,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--mergepath', type=str, help='Path to the merged conformer files.')
     parser.add_argument('--outpath', type=str, help='Output path to store merge and pruning data.')
-    parser.add_argument('--cutoff', type=int, help='Dihedral pruning cutoff. '
+    parser.add_argument('--cutoff', type=float, help='Dihedral pruning cutoff. '
                                                    'Number of computations performed since last new conformer.')
     parser.add_argument('--batch', type=int, help='')
     parser.add_argument('--past_prune', type=str, help='', default=False)
@@ -277,6 +277,8 @@ if __name__ == '__main__':
         p_info = calculate_pruning_cost(m_info, args.batch, past_prune)
         pickle.dump(p_info, open(f'{args.outpath}/prune_data.pkl', 'wb'))
 
+    print(f'Newly found conformers: {max(p_info["nconfs"])}')
+    print(f'Total amount of conformers: {m_info["ntotal"]}')
     keep_dih_list, prune_dih_list = pruning_list(p_info, args.cutoff,
                                                  outpath=f'{args.outpath}/keep_dihedrals',
                                                  batch_num=args.batch,
@@ -284,3 +286,4 @@ if __name__ == '__main__':
     pickle.dump(keep_dih_list, open(f'{args.outpath}/keep_dihedrals_cutoff-{args.cutoff}.pkl', 'wb'))
     pickle.dump(prune_dih_list, open(f'{args.outpath}/pruned_dihedrals_cutoff-{args.cutoff}.pkl', 'wb'))
     plotting(p_info, args.outpath, norm=True)
+    plotting(p_info, args.outpath, norm=False)
