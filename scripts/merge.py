@@ -83,7 +83,8 @@ class Merger(object):
             res = workpackage['res']
 
             # check for duplicates
-            prescreened = self._find_compatible(energy)
+            # prescreened = self._find_compatible(energy) # energy pre-filtering not done anymore
+            prescreened = np.arange(len(self._dataset['conformers']))
             similarity = self._is_duplicate(prescreened, coordinates)
             if not np.max(similarity) > QML_FCHL_THRESHOLD or similarity is False:
                 conformer = {'ene': energy,
