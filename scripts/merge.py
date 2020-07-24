@@ -28,6 +28,7 @@ Usage:
 import json
 import sys
 import os
+import pickle
 
 import numpy as np
 import tqdm
@@ -48,10 +49,11 @@ costorder = [(1, 0), (1, 1), (1, 2), (1, 3), (1, 4), (2, 0), (2, 1), (2, 2), (3,
 
 
 class Merger(object):
-    def __init__(self, merge_into_file, workpackage_file):
+    def __init__(self, merge_into_file, workpackage_file, keep_dihedrals):
         self._check_workpackage_status(workpackage_file)
         self._read_merge_into_file(merge_into_file, workpackage_file)
         self._init_caches()
+        self.keep_dihedrals = pickle.load(open(keep_dihedrals, 'rb'))
         self._merge_workpackages(workpackage_file)
 
     def _check_workpackage_status(self, workpackage_file):
@@ -67,7 +69,8 @@ class Merger(object):
             workpackages = fh.readlines()
         for wp in tqdm.tqdm(workpackages, desc="Merging workpackages"):
             wp = json.loads(wp)
-            self._consume_workpackage(wp)
+            if set(wp['dih']).issubset(set(self.keep_dihedrals[wp['mol']])):
+                self._consume_workpackage(wp)
 
     def _consume_workpackage(self, workpackage):
         """ Insert non-duplicates of the workpackage into the database."""
@@ -182,6 +185,6 @@ class Merger(object):
 
 
 if __name__ == '__main__':
-    merge_into_filename, workpackage_filename = sys.argv[1:]
-    m = Merger(merge_into_filename, workpackage_filename)
+    merge_into_filename, workpackage_filename, keep_dihedrals_filename = sys.argv[1:]
+    m = Merger(merge_into_filename, workpackage_filename, keep_dihedrals_filename)
     m.save(merge_into_filename)
