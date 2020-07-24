@@ -53,7 +53,8 @@ class Merger(object):
         self._check_workpackage_status(workpackage_file)
         self._read_merge_into_file(merge_into_file, workpackage_file)
         self._init_caches()
-        self.keep_dihedrals = pickle.load(open(keep_dihedrals, 'rb'))
+        _keep_dihedrals = pickle.load(open(keep_dihedrals, 'rb'))
+        self.keep_dihedrals = set([int(k) for k in _keep_dihedrals[self._dataset['molname']]])
         self._merge_workpackages(workpackage_file)
 
     def _check_workpackage_status(self, workpackage_file):
@@ -69,7 +70,7 @@ class Merger(object):
             workpackages = fh.readlines()
         for wp in tqdm.tqdm(workpackages, desc="Merging workpackages"):
             wp = json.loads(wp)
-            if set(wp['dih']).issubset(set(self.keep_dihedrals[wp['mol']])):
+            if set(wp['dih']).issubset(self.keep_dihedrals):
                 self._consume_workpackage(wp)
 
     def _consume_workpackage(self, workpackage):
