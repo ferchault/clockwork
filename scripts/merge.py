@@ -49,12 +49,10 @@ costorder = [(1, 0), (1, 1), (1, 2), (1, 3), (1, 4), (2, 0), (2, 1), (2, 2), (3,
 
 
 class Merger(object):
-    def __init__(self, merge_into_file, workpackage_file, keep_dihedrals):
+    def __init__(self, merge_into_file, workpackage_file, keep_dihedrals=None, similarity_check=None):
         self._check_workpackage_status(workpackage_file)
         self._read_merge_into_file(merge_into_file, workpackage_file)
-        self._init_caches()
-        _keep_dihedrals = pickle.load(open(keep_dihedrals, 'rb'))
-        self.keep_dihedrals = set([int(k) for k in _keep_dihedrals[self._dataset['molname']]])
+        self._init_caches(keep_dihedrals, similarity_check)
         self._merge_workpackages(workpackage_file)
 
     def _check_workpackage_status(self, workpackage_file):
@@ -68,17 +66,18 @@ class Merger(object):
         """ Read file with multiple workpackages."""
         with open(workpackage_file) as fh:
             workpackages = fh.readlines()
-        for wp in tqdm.tqdm(workpackages, desc="Merging workpackages"):
+        for i, wp in tqdm.tqdm(enumerate(workpackages), desc="Merging workpackages", total=len(workpackages)):
             wp = json.loads(wp)
-            if set(wp['dih']).issubset(self.keep_dihedrals):
-                self._consume_workpackage(wp)
+            if self.keep_dihedrals is None or set(wp['dih']).issubset(self.keep_dihedrals):
+                self._consume_workpackage(wp, i)
 
-    def _consume_workpackage(self, workpackage):
+    def _consume_workpackage(self, workpackage, wp_id):
         """ Insert non-duplicates of the workpackage into the database."""
         if workpackage['mol'] != self._dataset['molname']:
             raise ValueError("Different molecules in the two files.")
 
         contrib = False  # only switches to True if a new conformer is found
+        sim_id = None
         for geometry, energy in zip(workpackage['geo'], workpackage['ene']):
             # convert string geometry
             atomlines = geometry.split("\n")
@@ -89,7 +88,11 @@ class Merger(object):
             # check for duplicates
             # prescreened = self._find_compatible(energy) # energy pre-filtering not done anymore
             prescreened = np.arange(len(self._dataset['conformers']))
-            similarity = self._is_duplicate(prescreened, coordinates)
+            if self.similarity_check is not None and self.similarity_check[wp_id][0] is False:
+                self._dataset['conformers'][self.similarity_check[wp_id][1]]['same_conf'].append([len(dih), res, dih])
+                continue
+            else:
+                similarity = self._is_duplicate(prescreened, coordinates)
             if not np.max(similarity) > QML_FCHL_THRESHOLD or similarity is False:
                 conformer = {'ene': energy,
                              'geo': list(coordinates.flatten()),
@@ -100,9 +103,9 @@ class Merger(object):
                 contrib = True
             else:
                 if similarity is not False:
-                    sim_idx = np.where(similarity > QML_FCHL_THRESHOLD)[0]
-                    for sidx in sim_idx:
-                        self._dataset['conformers'][sidx]['same_conf'].append([len(dih), res, dih])
+                    sim_id = np.argmax(similarity)
+                    self._dataset['conformers'][sim_id]['same_conf'].append([len(dih), res, dih])
+        self._conformer_contribution.append([contrib, sim_id])
         self._calc_statistics(workpackage['dih'], contrib=contrib)
 
     def _calc_statistics(self, dihedrals, contrib=False):
@@ -144,10 +147,17 @@ class Merger(object):
                                 np.array([list(self._charges)] * len(reps)), QML_FCHL_SIGMA)
         return sim
 
-    def _init_caches(self):
+    def _init_caches(self, keep_dihedrals, similarity_check):
         """ Lazily builds caches of result conformers."""
         self._rep_cache = {}
         self._charges = np.array([{'H': 1, 'C': 6, 'N': 7, 'O': 8}[_] for _ in self._dataset['charges']])
+        self._conformer_contribution = []
+        if keep_dihedrals:
+            _keep_dihedrals = pickle.load(open(keep_dihedrals, 'rb'))
+            self.keep_dihedrals = set([int(k) for k in _keep_dihedrals[self._dataset['molname']]])
+        else:
+            self.keep_dihedrals = None
+        self.similarity_check = similarity_check if not None else None
 
     def _init_database(self, workpackage_file):
         with open(workpackage_file) as fh:
@@ -183,6 +193,9 @@ class Merger(object):
         with open(outputfile, 'w') as fh:
             json.dump(self._dataset, fh)
         print(f"Saved a database with {len(self._dataset['conformers'])} conformers")
+
+    def get_contribution(self):
+        return self._conformer_contribution
 
 
 if __name__ == '__main__':
