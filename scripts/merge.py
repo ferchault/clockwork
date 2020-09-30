@@ -29,6 +29,7 @@ import json
 import sys
 import os
 import pickle
+import argparse
 
 import numpy as np
 import tqdm
@@ -199,6 +200,11 @@ class Merger(object):
 
 
 if __name__ == '__main__':
-    merge_into_filename, workpackage_filename, keep_dihedrals_filename = sys.argv[1:]
-    m = Merger(merge_into_filename, workpackage_filename, keep_dihedrals_filename)
-    m.save(merge_into_filename)
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--merge_into_filename', type=str, help='Merge file from a previous batch')
+    parser.add_argument('--workpackage', type=str, help='Clockwork workpackage file.')
+    parser.add_argument('--keep_dihedrals', type=str, help='Output Directory', default=None)
+    parser.add_argument('--outmerge', type=str, help='Output merge file')
+    args = parser.parse_args()
+    m = Merger(args.merge_into_filename, args.workpackage, args.keep_dihedrals)
+    m.save(args.outmerge)
