@@ -39,24 +39,24 @@ def worker(inp):
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('--mergefile', type=str)
-    parser.add_argument('--workpackagefile', type=str)
-    parser.add_argument('--outfile', type=str)
+    parser.add_argument('--merge_into_filename', type=str)
+    parser.add_argument('--workpackage', type=str)
+    parser.add_argument('--outmerge', type=str)
     parser.add_argument('--n_procs', type=int)
     parser.add_argument('--tmp_dir', type=str,  default=None)
     parser.add_argument('--diherdralfilter', type=str,  default=None)
 
     args = parser.parse_args()
 
-    tpaths, s_idx = make_batches(args.workpackagefile, args.n_procs, outdir=args.tmp_dir)
+    tpaths, s_idx = make_batches(args.workpackage, args.n_procs, outdir=args.tmp_dir)
 
     pool = mp.Pool(processes=args.n_procs)
-    pre_filter = pool.map(worker, zip([args.mergefile]*args.n_procs, tpaths, [args.diherdralfilter]*args.n_procs))
+    pre_filter = pool.map(worker, zip([args.merge_into_filename]*args.n_procs, tpaths, [args.diherdralfilter]*args.n_procs))
     pre_filter = np.array([item for sublist in pre_filter for item in sublist])[s_idx]
     pre_filter = np.array([item for sublist in pre_filter for item in sublist], dtype='object')
     # np.save('similarity_results.npy', pre_filter)
-    m = Merger(args.mergefile, args.workpackagefile, None, similarity_check=pre_filter)
-    m.save(args.outfile)
+    m = Merger(args.merge_into_filename, args.workpackage, None, similarity_check=pre_filter)
+    m.save(args.outmerge)
 
     for tpath in tpaths:
         os.remove(tpath)
