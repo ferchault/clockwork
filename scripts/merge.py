@@ -67,18 +67,19 @@ class Merger(object):
         """ Read file with multiple workpackages."""
         with open(workpackage_file) as fh:
             workpackages = fh.readlines()
-        for i, wp in tqdm.tqdm(enumerate(workpackages), desc="Merging workpackages", total=len(workpackages)):
+        self._wp_id = 0
+        for wp in tqdm.tqdm(workpackages, desc="Merging workpackages", total=len(workpackages), mininterval=100):
             wp = json.loads(wp)
             if self.keep_dihedrals is None or set(wp['dih']).issubset(self.keep_dihedrals):
-                self._consume_workpackage(wp, i)
+                self._consume_workpackage(wp)
 
-    def _consume_workpackage(self, workpackage, wp_id):
+    def _consume_workpackage(self, workpackage):
         """ Insert non-duplicates of the workpackage into the database."""
         if workpackage['mol'] != self._dataset['molname']:
             raise ValueError("Different molecules in the two files.")
 
-        contrib = False  # only switches to True if a new conformer is found
-        sim_id = None
+        wp_contrib = False  # only switches to True if a new conformer is found
+        sim_comparisons = []
         for geometry, energy in zip(workpackage['geo'], workpackage['ene']):
             # convert string geometry
             atomlines = geometry.split("\n")
@@ -89,11 +90,12 @@ class Merger(object):
             # check for duplicates
             # prescreened = self._find_compatible(energy) # energy pre-filtering not done anymore
             prescreened = np.arange(len(self._dataset['conformers']))
-            if self.similarity_check is not None and self.similarity_check[wp_id][0] is False:
-                self._dataset['conformers'][self.similarity_check[wp_id][1]]['same_conf'].append([len(dih), res, dih])
-                continue
-            else:
-                similarity = self._is_duplicate(prescreened, coordinates)
+            if self.similarity_check is not None and self.similarity_check[self._wp_id][0] is False:
+                if self.similarity_check[self._wp_id][1] < len(self._dataset['conformers']):
+                    self._dataset['conformers'][self.similarity_check[self._wp_id][1]]['same_conf'].append([len(dih), res, dih])
+                    self._wp_id += 1
+                    continue
+            similarity = self._is_duplicate(prescreened, coordinates)
             if not np.max(similarity) > QML_FCHL_THRESHOLD or similarity is False:
                 conformer = {'ene': energy,
                              'geo': list(coordinates.flatten()),
@@ -101,13 +103,19 @@ class Merger(object):
                              'same_conf': []}
                 self._dataset['conf_contrib'][str((len(dih), res))].append(dih)
                 self._dataset['conformers'].append(conformer)
+                wp_contrib = True
                 contrib = True
+                sim_id = None
             else:
+                contrib = False
+                sim_id = None
                 if similarity is not False:
                     sim_id = np.argmax(similarity)
                     self._dataset['conformers'][sim_id]['same_conf'].append([len(dih), res, dih])
-        self._conformer_contribution.append([contrib, sim_id])
-        self._calc_statistics(workpackage['dih'], contrib=contrib)
+            self._wp_id += 1
+            sim_comparisons.append([contrib, sim_id])
+        self._conformer_contribution.append(sim_comparisons)
+        self._calc_statistics(workpackage['dih'], contrib=wp_contrib)
 
     def _calc_statistics(self, dihedrals, contrib=False):
         for dihedral in dihedrals:
