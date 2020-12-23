@@ -105,7 +105,7 @@ def load_merge_data(merge_files, batch_num):
     return merge_info
 
 
-def calculate_pruning_cost(merge_info, batch_num, prune_file):
+def calculate_pruning_cost(merge_info, batch_num, n_diheds):
     # Sort last dihedral contribution (ldc) in descending order
     last_contribs_idx = np.argsort(-np.array(merge_info['ldc'])[:, 0].astype(float))
     ldc = np.array(merge_info['ldc'])[last_contribs_idx]
@@ -115,9 +115,10 @@ def calculate_pruning_cost(merge_info, batch_num, prune_file):
     total_cost = 0
     for mname in merge_info['mols']:
         # Calculate total CPU cost so far
-        if prune_file and mname in prune_file:
-            n_pruned_diheds = len(prune_file[mname])
-            merge_info['mols'][mname]['n_diheds'] -= n_pruned_diheds
+        #if prune_file and mname in prune_file:
+        if n_diheds:
+            # n_pruned_diheds = len(prune_file[mname])
+            merge_info['mols'][mname]['n_diheds'] = n_diheds
         total_cost += cost_saved(merge_info['mols'][mname]['n_diheds'],
                                  last_batch_wp_idx[batch_num-1], end_wp=last_batch_wp_idx[batch_num])
 
@@ -134,8 +135,8 @@ def calculate_pruning_cost(merge_info, batch_num, prune_file):
         # last contribution, dihedral ID, molecule name
         lc, dih, mname = ldc[i]
 
-        if prune_file and mname in prune_file and str(dih) in prune_file[mname]:
-            continue
+        # if prune_file and mname in prune_file and str(dih) in prune_file[mname]:
+        #     continue
 
         last_wp = 0
         # Loop over all conformers of a molecule
