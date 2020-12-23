@@ -105,10 +105,10 @@ def mol_pruning(merge_file, batch, outpath, n_diheds=None, cutoff=0.99, save=Tru
 
 
 if __name__ == '__main__':
-    batchnr = sys.argv[1:]
+    data_path, batchnr = sys.argv[1:]
 
-    datapath = '/mnt/FOXTROT/CONFORMER/molecules/'
-    mergefiles = sorted(glob(f'/mnt/FOXTROT/CONFORMER/molecule_merge/batch{batchnr}/*.merged'))
+    datapath = f'{data_path}/molecules/'
+    mergefiles = sorted(glob(f'{data_path}/molecule_merge/batch{batchnr}/*.merged'))
     prune_infos = []
     for m in tqdm(mergefiles):
         molname = os.path.basename(m).split('.')[0]
